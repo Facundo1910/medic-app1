@@ -1,0 +1,499 @@
+<template>
+    <div class="home-enfermera">
+      <header class="header">
+        <div class="logo">🩺 Enfermera</div>
+        <div class="usuario">
+          <span class="nombre-usuario">{{ enfermera.nombre }}</span>
+          <button @click="logout" class="btn-logout">
+            Cerrar sesión
+          </button>
+        </div>
+      </header>
+  
+      <section class="paciente-info">
+        <h2>Paciente</h2>
+        <PacienteCard
+          :nombre="paciente.nombre"
+          :diagnosticos="diagnosticosSeleccionados"
+          :exito="guardadoDiagnosticoExito"
+          :error="guardadoDiagnosticoError"
+          @guardar-diagnosticos="guardarDiagnosticos"
+        />
+      </section>
+
+      <section class="diagnostico-form">
+        <div class="card">
+          <h2 style="margin-top:0;">Cargar nuevo diagnóstico</h2>
+          <DiagnosticoSelector
+            :diagnosticos="diagnosticosSeleccionados"
+            @update:diagnosticos="diagnosticosSeleccionados = $event"
+          />
+        </div>
+      </section>
+  
+      <section class="medicacion-form">
+        <div class="card">
+          <h2 style="margin-top:0;">Cargar nueva medicación</h2>
+          <MedicacionForm
+            :medicamento="nueva.medicamento"
+            @update:medicamento="nueva.medicamento = $event"
+            :dosis="nueva.dosis"
+            @update:dosis="nueva.dosis = $event"
+            :fechaHora="nueva.fechaHora"
+            @update:fechaHora="nueva.fechaHora = $event"
+            :errorFecha="errorFechaMedicacion"
+            @update:errorFecha="errorFechaMedicacion = $event"
+            @registrar="registrarMedicacion"
+          />
+        </div>
+      </section>
+  
+      <section class="historial">
+        <h2>Historial de medicación</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Medicamento</th>
+              <th>Dosis</th>
+              <th>Fecha y hora</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(item, index) in historial" :key="index">
+              <td>{{ item.medicamento }}</td>
+              <td>{{ item.dosis }} mg</td>
+              <td>{{ item.fechaHora }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+  </template>
+  
+  <script>
+  import { db } from "@/firebase";
+  import { collection, getDocs, query, where, updateDoc, arrayUnion } from "firebase/firestore";
+  import PacienteCard from "@/components/commons/PacienteCard.vue";
+  import DiagnosticoSelector from "@/components/commons/DiagnosticoSelector.vue";
+  import MedicacionForm from "@/components/commons/MedicacionForm.vue";
+  export default {
+    name: "HomePaciente",
+    components: { PacienteCard, DiagnosticoSelector, MedicacionForm },
+    data() {
+      return {
+        enfermera: {
+          nombre: "Maria Lopez",
+        },
+        paciente: {
+          nombre: "Cargando...",
+          diagnostico: "Cargando...",
+        },
+        nueva: {
+          medicamento: "",
+          dosis: "",
+          fechaHora: "",
+        },
+        historial: [
+        ],
+        // historial se llenará dinámicamente
+        sugerencias: [],
+        diagnosticosSeleccionados: [],
+        guardadoDiagnosticoExito: false,
+        guardadoDiagnosticoError: false,
+        errorFechaMedicacion: "",
+      };
+    },
+    async mounted() {
+      try {
+        // Cargar datos del paciente desde localStorage
+        const pacienteData = localStorage.getItem('paciente');
+        
+        if (pacienteData) {
+          this.paciente = JSON.parse(pacienteData);
+        } else {
+          // Si no hay datos del paciente, redirigir al login
+          this.$router.push('/');
+          return;
+        }
+        // Verificar conexión con Firestore
+        await getDocs(collection(db, "pacientes"));
+        console.log("Conexión a Firestore exitosa");
+
+        // Buscar el documento del paciente por nombre y traer diagnósticos y medicaciones guardadas
+        const q = query(collection(db, "pacientes"), where("nombre", "==", this.paciente.nombre));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const docData = querySnapshot.docs[0].data();
+          if (docData.diagnosticos && Array.isArray(docData.diagnosticos)) {
+            this.diagnosticosSeleccionados = docData.diagnosticos;
+          }
+          if (docData.medicaciones && Array.isArray(docData.medicaciones)) {
+            // Ordenar por fecha descendente si es posible
+            this.historial = docData.medicaciones.slice().sort((a, b) => (b.fechaHora || '').localeCompare(a.fechaHora || ''));
+          }
+        }
+      } catch (e) {
+        console.error("Error al cargar datos:", e);
+        alert("Error al cargar los datos del paciente");
+      }
+    },
+    methods: {
+      registrarMedicacion: async function(medicacion) {
+        this.errorFechaMedicacion = "";
+        // Validar fecha
+        if (!medicacion.fechaHora) {
+          this.errorFechaMedicacion = "Debes ingresar la fecha y hora de suministro.";
+          return;
+        }
+        const fechaSuministro = new Date(medicacion.fechaHora);
+        const ahora = new Date();
+
+        // No permitir fechas en el futuro
+        if (fechaSuministro > ahora) {
+          this.errorFechaMedicacion = "La fecha de suministro no puede ser en el futuro.";
+          return;
+        }
+
+        // No permitir fechas muy antiguas (más de 30 días atrás)
+        const hace30dias = new Date();
+        hace30dias.setDate(ahora.getDate() - 30);
+        if (fechaSuministro < hace30dias) {
+          this.errorFechaMedicacion = "La fecha de suministro no puede ser anterior a 30 días.";
+          return;
+        }
+
+        // Simula el guardado local
+        this.historial.unshift(medicacion);
+
+        // Guardar en Firestore
+        try {
+          const q = query(collection(db, "pacientes"), where("nombre", "==", this.paciente.nombre));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            const docRef = querySnapshot.docs[0].ref;
+            await updateDoc(docRef, {
+              medicaciones: arrayUnion({
+                medicamento: medicacion.medicamento,
+                dosis: medicacion.dosis,
+                fechaHora: medicacion.fechaHora,
+              })
+            });
+          }
+        } catch (e) {
+          // Puedes mostrar un mensaje de error si lo deseas
+          console.error("Error al guardar medicación en Firestore", e);
+        }
+
+        // Limpiar formulario
+        this.nueva.medicamento = "";
+        this.nueva.dosis = "";
+        this.nueva.fechaHora = "";
+        this.sugerencias = [];
+        this.errorFechaMedicacion = "";
+      },
+      async buscarMedicamentos() {
+        if (this.nueva.medicamento.length < 3) {
+          this.sugerencias = [];
+          return;
+        }
+        const query = encodeURIComponent(this.nueva.medicamento);
+        const url = `https://cima.aemps.es/cima/rest/medicamentos?nombre=${query}`;
+        try {
+          const res = await fetch(url);
+          const data = await res.json();
+          this.sugerencias = Array.from(new Set((data.resultados || []).map(m => m.nombre))).slice(0, 10);
+        } catch (e) {
+          this.sugerencias = [];
+        }
+      },
+      seleccionarMedicamento(nombre) {
+        this.nueva.medicamento = nombre;
+        this.sugerencias = [];
+      },
+      logout() {
+        // Limpiar datos de sesión
+        localStorage.removeItem('paciente');
+        // Redirigir a la página de login
+        this.$router.push('/');
+      },
+      async guardarDiagnosticos() {
+        this.guardadoDiagnosticoExito = false;
+        this.guardadoDiagnosticoError = false;
+        try {
+          // Buscar el documento del paciente por nombre
+          const q = query(collection(db, "pacientes"), where("nombre", "==", this.paciente.nombre));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            const docRef = querySnapshot.docs[0].ref;
+            await updateDoc(docRef, { diagnosticos: this.diagnosticosSeleccionados });
+            this.guardadoDiagnosticoExito = true;
+            setTimeout(() => { this.guardadoDiagnosticoExito = false; }, 2000);
+          } else {
+            this.guardadoDiagnosticoError = true;
+          }
+        } catch (e) {
+          this.guardadoDiagnosticoError = true;
+        }
+      },
+    },
+  };
+  </script>
+  
+  <style scoped>
+  
+  .home-enfermera {
+    max-width: 700px;
+    margin: auto;
+    font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+    padding: 32px 0 32px 0;
+    background: #f6f8fc;
+  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(90deg, #2d4fff 60%, #4f8cff 100%);
+    color: white;
+    padding: 28px 36px;
+    border-radius: 32px;
+    box-shadow: 0 8px 32px rgba(45,79,255,0.10);
+    margin-bottom: 36px;
+  }
+  
+  .usuario {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  
+  .nombre-usuario {
+    font-weight: 700;
+    font-size: 18px;
+  }
+  
+  .btn-logout {
+    background: linear-gradient(90deg, #2d4fff 60%, #4f8cff 100%);
+    color: #fff;
+    border: 2px solid #2d4fff;
+    padding: 10px 24px;
+    border-radius: 22px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 16px;
+    transition: background 0.2s, color 0.2s;
+    box-shadow: none;
+    outline: none;
+    margin-left: 10px;
+  }
+  .btn-logout:hover {
+    background: linear-gradient(90deg, #1e88e5 60%, #2d4fff 100%);
+    color: #fff;
+  }
+  
+  .btn-logout:active {
+    transform: translateY(0);
+  }
+  
+  .logout-icon {
+    font-size: 18px;
+  }
+  .card {
+    background: #fff;
+    color: #222;
+    font-weight: bold;
+    text-shadow: 1px 1px 4px rgba(0,0,0,0.10);
+    padding: 28px 28px 18px 28px;
+    border-radius: 32px;
+    box-shadow: 0 8px 32px rgba(45,79,255,0.07);
+    margin-bottom: 28px;
+  }
+  form {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border-radius: 32px;
+    box-shadow: 0 8px 32px rgba(45,79,255,0.07);
+    padding: 28px 28px 18px 28px;
+    margin-bottom: 28px;
+  }
+  form label {
+    margin-top: 14px;
+    font-weight: 600;
+    font-size: 16px;
+  }
+  form input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px;
+    border: 1.8px solid #b3c6e0;
+    border-radius: 18px;
+    margin-top: 5px;
+    font-size: 17px;
+    transition: border 0.2s;
+    background: #f6f8fc;
+  }
+  form input:focus {
+    border: 1.8px solid #2d4fff;
+    outline: none;
+    background: #fff;
+  }
+  form button {
+    margin-top: 22px;
+    background: linear-gradient(90deg, #2d4fff 60%, #4f8cff 100%);
+    color: white;
+    padding: 14px;
+    border: none;
+    border-radius: 22px;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(45,79,255,0.10);
+    transition: background 0.2s;
+    letter-spacing: 0.5px;
+  }
+  form button:hover {
+    background: linear-gradient(90deg, #1e88e5 60%, #2d4fff 100%);
+  }
+  table {
+    width: 100%;
+    margin-top: 18px;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+    border-radius: 22px;
+    box-shadow: 0 8px 32px rgba(45,79,255,0.07);
+    overflow: hidden;
+  }
+  th, td {
+    border: none;
+    padding: 16px 14px;
+    text-align: left;
+    font-size: 16px;
+  }
+  th {
+    background: linear-gradient(90deg, #2d4fff 60%, #4f8cff 100%);
+    color: #fff;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  tbody tr:nth-child(even) {
+    background: #f6f8fc;
+  }
+  tbody tr:nth-child(odd) {
+    background: #fff;
+  }
+  .sugerencias {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    border: 1.8px solid #b3c6e0;
+    max-height: 140px;
+    overflow-y: auto;
+    position: absolute;
+    z-index: 10;
+    width: 95%;
+    border-radius: 18px;
+    box-shadow: 0 2px 8px rgba(45,79,255,0.10);
+  }
+  .sugerencias li {
+    padding: 12px 16px;
+    cursor: pointer;
+    border-radius: 12px;
+    font-size: 16px;
+  }
+  .sugerencias li:hover {
+    background: #e3f2fd;
+  }
+  .chips-container {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    background: #e3f2fd;
+    color: #2d4fff;
+    border-radius: 18px;
+    padding: 6px 14px;
+    font-size: 15px;
+    margin-right: 6px;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .chip-remove {
+    margin-left: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    color: #d32f2f;
+    font-size: 18px;
+  }
+  .btn-guardar-diagnosticos {
+    margin-top: 14px;
+    background: linear-gradient(90deg, #43a047 60%, #66bb6a 100%);
+    color: white;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 22px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 16px;
+    transition: background 0.2s;
+    box-shadow: 0 2px 8px rgba(67,160,71,0.13);
+  }
+  .btn-guardar-diagnosticos:hover {
+    background: linear-gradient(90deg, #388e3c 60%, #43a047 100%);
+  }
+  .exito {
+    color: #388e3c;
+    margin-left: 12px;
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .error {
+    color: #d32f2f;
+    margin-left: 12px;
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .diagnosticos-lista {
+    color: #111;
+    font-weight: 700;
+    font-size: 17px;
+  }
+  .error-fecha {
+    color: #d32f2f;
+    font-size: 15px;
+    margin-top: 6px;
+    margin-bottom: 2px;
+  }
+
+/* Separadores sutiles */
+.paciente-info, .medicacion-form, .historial {
+  margin-bottom: 36px;
+}
+
+</style>
+  
+<style>
+body {
+  background-image: url('~@/assets/fondo.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+  background-color: #f6f8fc;
+}
+html, body {
+  color: #222;
+  font-weight: 500;
+  text-shadow: 1px 1px 4px rgba(0,0,0,0.12);
+}
+</style>
+  
