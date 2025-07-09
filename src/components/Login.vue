@@ -115,7 +115,7 @@
             <input v-model="nuevoAnio" id="nuevoAnio" type="number" min="1900" max="2100" required />
             <label for="nuevoEmail">Email</label>
             <input v-model="nuevoEmail" id="nuevoEmail" type="email" required />
-            <button type="submit" style="margin-top: 10px;" :disabled="nombreError">Registrarse</button>
+            <button type="submit" style="margin-top: 10px;" :disabled="nombreError && nuevoNombre.length > 0">Registrarse</button>
           </form>
           
           <!-- Botón para verificar estado de validación (solo para enfermeras) -->
@@ -340,15 +340,15 @@ export default {
       // Limpiar espacios al inicio y final
       this.nuevoNombre = nombre.trim();
       
-      // Verificar si contiene espacios
-      if (nombre.includes(' ')) {
-        this.nombreError = '❌ El nombre no puede contener espacios. Usa solo letras, números y guiones.';
+      // Si está vacío, no mostrar error
+      if (nombre.length === 0) {
+        this.nombreError = '';
         return false;
       }
       
-      // Verificar si está vacío
-      if (nombre.length === 0) {
-        this.nombreError = '';
+      // Verificar si contiene espacios
+      if (nombre.includes(' ')) {
+        this.nombreError = '❌ El nombre no puede contener espacios. Usa solo letras, números y guiones.';
         return false;
       }
       
@@ -365,6 +365,7 @@ export default {
         return false;
       }
       
+      // Si pasa todas las validaciones, limpiar error
       this.nombreError = '';
       return true;
     },
