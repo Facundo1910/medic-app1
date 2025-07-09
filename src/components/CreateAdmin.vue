@@ -13,11 +13,16 @@
           <label for="adminNombre">Nombre del Administrador:</label>
           <input 
             v-model="adminData.nombre" 
+            @input="validarNombre"
             id="adminNombre" 
             type="text" 
             required 
-            placeholder="Ej: Juan Pérez"
+            placeholder="Ej: JuanPerez (sin espacios)"
+            :class="{ 'error-input': nombreError }"
           />
+          <div v-if="nombreError" class="error-message">
+            {{ nombreError }}
+          </div>
         </div>
         
         <div class="form-group">
@@ -44,7 +49,7 @@
         
         <button 
           type="submit" 
-          :disabled="procesando"
+          :disabled="procesando || nombreError"
           class="btn-crear"
         >
           {{ procesando ? 'Creando...' : 'Crear Administrador' }}
@@ -62,6 +67,7 @@
           <li>Podrás aprobar o rechazar solicitudes de enfermeras</li>
           <li>Recibirás emails cuando las enfermeras se registren</li>
           <li>Accede a <code>/admin</code> después de crear la cuenta</li>
+          <li><strong>El nombre no puede contener espacios</strong></li>
         </ul>
       </div>
     </div>
@@ -84,13 +90,49 @@ export default {
       procesando: false,
       mensaje: '',
       mensajeTipo: 'info',
-      adminExists: false
+      adminExists: false,
+      nombreError: ''
     };
   },
   async mounted() {
     await this.verificarAdminExistente();
   },
   methods: {
+    validarNombre() {
+      const nombre = this.adminData.nombre;
+      
+      // Limpiar espacios al inicio y final
+      this.adminData.nombre = nombre.trim();
+      
+      // Verificar si contiene espacios
+      if (nombre.includes(' ')) {
+        this.nombreError = '❌ El nombre no puede contener espacios. Usa solo letras, números y guiones.';
+        return false;
+      }
+      
+      // Verificar si está vacío
+      if (nombre.length === 0) {
+        this.nombreError = '';
+        return false;
+      }
+      
+      // Verificar longitud mínima
+      if (nombre.length < 3) {
+        this.nombreError = '❌ El nombre debe tener al menos 3 caracteres.';
+        return false;
+      }
+      
+      // Verificar caracteres válidos (solo letras, números, guiones y guiones bajos)
+      const regex = /^[a-zA-Z0-9_-]+$/;
+      if (!regex.test(nombre)) {
+        this.nombreError = '❌ Solo se permiten letras, números, guiones (-) y guiones bajos (_).';
+        return false;
+      }
+      
+      this.nombreError = '';
+      return true;
+    },
+    
     async verificarAdminExistente() {
       const result = await checkAdminExists();
       this.adminExists = result.exists;
@@ -106,6 +148,13 @@ export default {
       this.mensaje = '';
       
       try {
+        // Validar nombre
+        if (!this.validarNombre()) {
+          this.mensaje = '❌ Por favor, corrige los errores en el formulario.';
+          this.mensajeTipo = 'error';
+          return;
+        }
+        
         // Validar que la clave sea segura
         if (!this.esClaveSegura(this.adminData.clave)) {
           this.mensaje = 'La clave debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial.';
@@ -123,6 +172,7 @@ export default {
           this.adminData.nombre = '';
           this.adminData.clave = '';
           this.adminData.email = 'facubas39@gmail.com';
+          this.nombreError = '';
           
           // Actualizar estado
           await this.verificarAdminExistente();
@@ -212,6 +262,18 @@ h2 {
 .form-group input:focus {
   outline: none;
   border-color: #2d4fff;
+}
+
+.form-group input.error-input {
+  border-color: #dc3545;
+  background-color: #fff5f5;
+}
+
+.error-message {
+  color: #dc3545;
+  font-size: 14px;
+  margin-top: 5px;
+  font-weight: 500;
 }
 
 .btn-crear {

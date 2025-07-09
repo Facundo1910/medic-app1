@@ -97,14 +97,25 @@
 
           <form @submit.prevent="registrarUsuario">
             <label for="nuevoNombre">Nombre</label>
-            <input v-model="nuevoNombre" id="nuevoNombre" required />
+            <input 
+              v-model="nuevoNombre" 
+              @input="validarNombre"
+              id="nuevoNombre" 
+              required 
+              placeholder="Ej: JuanPerez (sin espacios)"
+              :class="{ 'error-input': nombreError }"
+            />
+            <div v-if="nombreError" class="error-message">
+              {{ nombreError }}
+            </div>
+            
             <label for="nuevaClave">Clave</label>
             <input v-model="nuevaClave" id="nuevaClave" type="password" required />
             <label for="nuevoAnio">Año de nacimiento</label>
             <input v-model="nuevoAnio" id="nuevoAnio" type="number" min="1900" max="2100" required />
             <label for="nuevoEmail">Email</label>
             <input v-model="nuevoEmail" id="nuevoEmail" type="email" required />
-            <button type="submit" style="margin-top: 10px;">Registrarse</button>
+            <button type="submit" style="margin-top: 10px;" :disabled="nombreError">Registrarse</button>
           </form>
           
           <!-- Botón para verificar estado de validación (solo para enfermeras) -->
@@ -149,7 +160,8 @@ export default {
       registroError: "",
       registroExito: "",
       validacionRequestId: null,
-      verificandoValidacion: false
+      verificandoValidacion: false,
+      nombreError: "" // Nuevo campo para el error de nombre
     };
   },
   methods: {
@@ -162,6 +174,7 @@ export default {
       this.nuevoAnio = "";
       this.nuevoEmail = "";
       this.rolRegistro = "paciente";
+      this.nombreError = ""; // Limpiar error de nombre al abrir modal
     },
     cerrarModalRegistro() {
       this.mostrarModalRegistro = false;
@@ -229,6 +242,7 @@ export default {
     async registrarUsuario() {
       this.registroError = "";
       this.registroExito = "";
+      this.nombreError = ""; // Limpiar error de nombre al intentar registrar
       
       // Validar que la clave sea segura
       if (!this.esClaveSegura(this.nuevaClave)) {
@@ -239,6 +253,12 @@ export default {
       // Validar que el email sea válido
       if (!this.esEmailValido(this.nuevoEmail)) {
         this.registroError = "El email ingresado no es válido.";
+        return;
+      }
+
+      // Validar nombre
+      if (!this.validarNombre()) {
+        this.registroError = '❌ Por favor, corrige los errores en el formulario.';
         return;
       }
       
@@ -313,6 +333,40 @@ export default {
       // Validación básica de email
       const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       return regex.test(email);
+    },
+    validarNombre() {
+      const nombre = this.nuevoNombre;
+      
+      // Limpiar espacios al inicio y final
+      this.nuevoNombre = nombre.trim();
+      
+      // Verificar si contiene espacios
+      if (nombre.includes(' ')) {
+        this.nombreError = '❌ El nombre no puede contener espacios. Usa solo letras, números y guiones.';
+        return false;
+      }
+      
+      // Verificar si está vacío
+      if (nombre.length === 0) {
+        this.nombreError = '';
+        return false;
+      }
+      
+      // Verificar longitud mínima
+      if (nombre.length < 3) {
+        this.nombreError = '❌ El nombre debe tener al menos 3 caracteres.';
+        return false;
+      }
+      
+      // Verificar caracteres válidos (solo letras, números, guiones y guiones bajos)
+      const regex = /^[a-zA-Z0-9_-]+$/;
+      if (!regex.test(nombre)) {
+        this.nombreError = '❌ Solo se permiten letras, números, guiones (-) y guiones bajos (_).';
+        return false;
+      }
+      
+      this.nombreError = '';
+      return true;
     },
     
     async verificarEstadoValidacion() {
@@ -476,5 +530,16 @@ button {
   align-items: center;
   justify-content: center;
   /* No background aquí, solo centrado */
+}
+.error-input {
+  border-color: #dc3545 !important;
+  background-color: #fff5f5;
+}
+.error-message {
+  color: #dc3545;
+  font-size: 14px;
+  margin-top: 5px;
+  font-weight: 500;
+  margin-bottom: 10px;
 }
 </style>
