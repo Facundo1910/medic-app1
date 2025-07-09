@@ -3,6 +3,8 @@ import Router from "vue-router";
 import Login from "@/components/Login.vue";
 import HomeEnfermera from "@/components/HomeEnfermera.vue";
 import HomePaciente from "@/components/HomePaciente.vue";
+import AdminPanel from "@/components/AdminPanel.vue";
+import CreateAdmin from "@/components/CreateAdmin.vue";
 
 Vue.use(Router);
 
@@ -19,6 +21,15 @@ const router = new Router({
       path: "/paciente", 
       component: HomePaciente,
       meta: { requiresAuth: true, role: 'paciente' }
+    },
+    { 
+      path: "/admin", 
+      component: AdminPanel,
+      meta: { requiresAuth: true, role: 'admin' }
+    },
+    { 
+      path: "/create-admin", 
+      component: CreateAdmin
     },
     { path: "*", redirect: "/" }
   ]
@@ -44,6 +55,8 @@ router.beforeEach((to, from, next) => {
       // Usuario no tiene el rol correcto, redirigir según su rol
       if (usuario.rol === 'enfermera') {
         next('/enfermera');
+      } else if (usuario.rol === 'admin') {
+        next('/admin');
       } else {
         next('/paciente');
       }
@@ -57,6 +70,8 @@ router.beforeEach((to, from, next) => {
       // Usuario ya autenticado, redirigir según su rol
       if (usuario.rol === 'enfermera') {
         next('/enfermera');
+      } else if (usuario.rol === 'admin') {
+        next('/admin');
       } else {
         next('/paciente');
       }

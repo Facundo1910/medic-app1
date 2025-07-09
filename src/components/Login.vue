@@ -21,6 +21,13 @@
           >
             👤 Paciente/Familia
           </button>
+          <button 
+            @click="rolSeleccionado = 'admin'" 
+            :class="{ active: rolSeleccionado === 'admin' }"
+            class="rol-btn"
+          >
+            🔧 Administrador
+          </button>
         </div>
       </div>
 
@@ -53,6 +60,12 @@
         <button @click="abrirModalRegistro" type="button" style="background: none; color: #1e88e5; border: none; cursor: pointer; text-decoration: underline; font-size: 15px;">
           ¿No tienes cuenta? Registrate
         </button>
+      </div>
+      
+      <div style="margin-top: 10px; text-align: center;">
+        <router-link to="/create-admin" style="color: #666; text-decoration: none; font-size: 13px;">
+          🔧 Crear cuenta de administrador
+        </router-link>
       </div>
 
       <!-- Modal de registro -->
@@ -93,6 +106,18 @@
             <input v-model="nuevoEmail" id="nuevoEmail" type="email" required />
             <button type="submit" style="margin-top: 10px;">Registrarse</button>
           </form>
+          
+          <!-- Botón para verificar estado de validación (solo para enfermeras) -->
+          <div v-if="validacionRequestId && rolRegistro === 'enfermera'" style="margin-top: 15px; text-align: center;">
+            <button 
+              @click="verificarEstadoValidacion" 
+              :disabled="verificandoValidacion"
+              style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;"
+            >
+              {{ verificandoValidacion ? 'Verificando...' : 'Verificar Estado de Validación' }}
+            </button>
+          </div>
+          
           <p v-if="registroError" class="error">{{ registroError }}</p>
           <p v-if="registroExito" style="color: green; margin-top: 8px;">{{ registroExito }}</p>
         </div>
@@ -104,6 +129,7 @@
 <script>
 import { db } from "@/firebase";
 import { collection, query, where, getDocs, addDoc } from "firebase/firestore";
+import { sendNurseValidationRequest, checkNurseValidationStatus, isEmailJSConfigured } from "@/services/nurseValidationService";
   
 export default {
   name: "LoginPaciente",
@@ -121,7 +147,9 @@ export default {
       nuevoAnio: "",
       nuevoEmail: "",
       registroError: "",
-      registroExito: ""
+      registroExito: "",
+      validacionRequestId: null,
+      verificandoValidacion: false
     };
   },
   methods: {
@@ -141,7 +169,26 @@ export default {
     async login() {
       this.error = "";
       try {
-        // Determinar la colección según el rol
+        // Primero verificar si es un administrador
+        const qAdmin = query(
+          collection(db, "admins"),
+          where("nombre", "==", this.usuario),
+          where("clave", "==", this.clave)
+        );
+        const adminSnapshot = await getDocs(qAdmin);
+        
+        if (!adminSnapshot.empty) {
+          // Es un administrador
+          const admin = adminSnapshot.docs[0].data();
+          admin.rol = 'admin';
+          admin.id = adminSnapshot.docs[0].id;
+          
+          localStorage.setItem('usuario', JSON.stringify(admin));
+          this.$router.push("/admin");
+          return;
+        }
+        
+        // Si no es admin, verificar según el rol seleccionado
         const coleccion = this.rolSeleccionado === 'enfermera' ? 'enfermeras' : 'pacientes';
         
         const q = query(
@@ -155,6 +202,14 @@ export default {
           // Agregar el rol al objeto del usuario
           usuario.rol = this.rolSeleccionado;
           usuario.id = querySnapshot.docs[0].id;
+          
+          // Para enfermeras, verificar que estén aprobadas
+          if (this.rolSeleccionado === 'enfermera') {
+            if (!usuario.aprobadoPor) {
+              this.error = "Tu cuenta de enfermera aún no ha sido aprobada. Te notificaremos por email cuando sea aprobada.";
+              return;
+            }
+          }
           
           localStorage.setItem('usuario', JSON.stringify(usuario));
           
@@ -202,19 +257,49 @@ export default {
           return;
         }
         
-        await addDoc(collection(db, coleccion), {
-          nombre: this.nuevoNombre,
-          clave: this.nuevaClave,
-          anioNacimiento: this.nuevoAnio,
-          email: this.nuevoEmail,
-          rol: this.rolRegistro
-        });
-        
-        this.registroExito = "¡Registro exitoso! Ya puedes iniciar sesión.";
-        this.nuevoNombre = "";
-        this.nuevaClave = "";
-        this.nuevoAnio = "";
-        this.nuevoEmail = "";
+        // Si es enfermera, usar el sistema de validación
+        if (this.rolRegistro === 'enfermera') {
+          if (!isEmailJSConfigured()) {
+            this.registroError = "El sistema de validación no está configurado. Contacta al administrador.";
+            return;
+          }
+          
+          const nurseData = {
+            nombre: this.nuevoNombre,
+            clave: this.nuevaClave,
+            anioNacimiento: this.nuevoAnio,
+            email: this.nuevoEmail,
+            rol: this.rolRegistro
+          };
+          
+          const result = await sendNurseValidationRequest(nurseData);
+          
+          if (result.success) {
+            this.registroExito = result.message;
+            this.validacionRequestId = result.requestId;
+            this.nuevoNombre = "";
+            this.nuevaClave = "";
+            this.nuevoAnio = "";
+            this.nuevoEmail = "";
+          } else {
+            this.registroError = result.message;
+          }
+        } else {
+          // Para pacientes, registro directo
+          await addDoc(collection(db, coleccion), {
+            nombre: this.nuevoNombre,
+            clave: this.nuevaClave,
+            anioNacimiento: this.nuevoAnio,
+            email: this.nuevoEmail,
+            rol: this.rolRegistro
+          });
+          
+          this.registroExito = "¡Registro exitoso! Ya puedes iniciar sesión.";
+          this.nuevoNombre = "";
+          this.nuevaClave = "";
+          this.nuevoAnio = "";
+          this.nuevoEmail = "";
+        }
       } catch (e) {
         this.registroError = "Error al registrar usuario.";
       }
@@ -228,6 +313,33 @@ export default {
       // Validación básica de email
       const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       return regex.test(email);
+    },
+    
+    async verificarEstadoValidacion() {
+      if (!this.validacionRequestId) return;
+      
+      this.verificandoValidacion = true;
+      try {
+        const result = await checkNurseValidationStatus(this.validacionRequestId);
+        
+        if (result.success) {
+          if (result.estado === 'aprobado') {
+            this.registroExito = "¡Tu cuenta ha sido aprobada! Ya puedes iniciar sesión.";
+            this.validacionRequestId = null;
+          } else if (result.estado === 'rechazado') {
+            this.registroError = `Tu solicitud fue rechazada: ${result.mensaje}`;
+            this.validacionRequestId = null;
+          } else {
+            this.registroExito = "Tu solicitud está siendo revisada. Te notificaremos cuando sea aprobada.";
+          }
+        } else {
+          this.registroError = result.message;
+        }
+      } catch (error) {
+        this.registroError = "Error al verificar el estado de validación";
+      } finally {
+        this.verificandoValidacion = false;
+      }
     }
   }
 };
@@ -254,8 +366,9 @@ export default {
 }
 .rol-buttons {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   justify-content: center;
+  flex-wrap: wrap;
 }
 .rol-btn {
   padding: 10px 15px;

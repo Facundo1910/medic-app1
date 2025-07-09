@@ -7,8 +7,8 @@
 
 export const EMAILJS_CONFIG = {
   SERVICE_ID: 'service_yt1zyld',
-  TEMPLATE_ID: 'template_z6hdnq9',
-  PUBLIC_KEY: 'Vj4VQhL2SDkbzkxbz'
+  TEMPLATE_ID: 'template_7vzuurg',
+  PUBLIC_KEY: 'f7l5SdTGT0GsM8jEL'
 };
 
 // INSTRUCCIONES:
