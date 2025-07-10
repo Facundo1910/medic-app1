@@ -147,11 +147,28 @@ export default {
           orderBy("fechaSolicitud", "desc")
         );
         const querySnapshot = await getDocs(q);
-        
-        this.solicitudes = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        const now = Date.now();
+        const unDiaMs = 24 * 60 * 60 * 1000;
+        const batchDeletes = [];
+        this.solicitudes = [];
+        for (const doc of querySnapshot.docs) {
+          const data = doc.data();
+          let fechaEstado = null;
+          if (data.estado === 'aprobado' && data.fechaAprobacion) {
+            fechaEstado = new Date(data.fechaAprobacion).getTime();
+          } else if (data.estado === 'rechazado' && data.fechaRechazo) {
+            fechaEstado = new Date(data.fechaRechazo).getTime();
+          }
+          if (fechaEstado && (now - fechaEstado > unDiaMs)) {
+            // Eliminar solicitud vieja
+            batchDeletes.push(doc.ref.delete());
+          } else {
+            this.solicitudes.push({ id: doc.id, ...data });
+          }
+        }
+        if (batchDeletes.length > 0) {
+          await Promise.all(batchDeletes);
+        }
       } catch (e) {
         console.error("Error al cargar solicitudes:", e);
         alert("Error al cargar las solicitudes");
