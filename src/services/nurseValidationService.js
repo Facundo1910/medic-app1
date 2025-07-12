@@ -10,6 +10,8 @@ const ADMIN_EMAIL = 'facubas39@gmail.com';
  * @returns {Promise<{success: boolean, message: string, requestId?: string, error?: string}>}
  */
 export const sendNurseValidationRequest = async (nurseData) => {
+  console.log('DEBUG API KEY:', process.env.VUE_APP_BREVO_API_KEY);
+  console.log('🚀 Iniciando solicitud de validación para:', nurseData.nombre);
   try {
     console.log('🚀 Iniciando solicitud de validación para:', nurseData.nombre);
     
@@ -128,6 +130,7 @@ export const checkNurseValidationStatus = async (requestId) => {
  * @returns {Promise<{success: boolean, message: string, error?: string}>}
  */
 const sendNurseValidationEmailBrevo = async (nurseData, requestId) => {
+  console.log('📧 Enviando email de validación para:', nurseData.nombre);
   try {
     console.log('📧 Preparando email de validación para:', nurseData.nombre);
     console.log('📧 Email del administrador:', ADMIN_EMAIL);

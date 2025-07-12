@@ -56,7 +56,7 @@
         </div>
         <button type="submit">Ingresar</button>
         <div style="margin-top: 10px;">
-          <button type="button" @click="abrirModalRecupero" style="background: none; color: #1e88e5; border: none; cursor: pointer; text-decoration: underline; font-size: 15px; width: 100%;">¿Olvidaste tu contraseña?</button>
+          <button type="button" @click="mostrarModalRecupero = true" style="background: none; color: #1e88e5; border: none; cursor: pointer; text-decoration: underline; font-size: 15px; width: 100%;">¿Olvidaste tu contraseña?</button>
         </div>
       </form>
       <p v-if="error" class="error">{{ error }}</p>
@@ -134,12 +134,7 @@
         </div>
       </div>
       <!-- Modal de recuperación de contraseña -->
-      <div v-if="mostrarModalRecupero" class="modal-overlay">
-        <div class="modal-content password-reset-modal">
-          <button class="modal-close" @click="cerrarModalRecupero">&times;</button>
-          <PasswordReset @back-to-login="cerrarModalRecupero" />
-        </div>
-      </div>
+      <PasswordResetModal v-if="mostrarModalRecupero" @close="mostrarModalRecupero = false" />
     </div>
   </div>
 </template>
@@ -147,10 +142,10 @@
 import { db } from "@/firebase";
 import { collection, query, where, getDocs, addDoc } from "firebase/firestore";
 import { sendNurseValidationRequest, checkNurseValidationStatus } from "@/services/nurseValidationService";
-import PasswordReset from './PasswordReset.vue';
+import PasswordResetModal from './PasswordResetModal.vue';
 export default {
   name: "LoginPaciente",
-  components: { PasswordReset },
+  components: { PasswordResetModal },
   data() {
     return {
       dni: "",
