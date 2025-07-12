@@ -74,7 +74,7 @@
       <div v-if="mostrarModalRegistro" class="modal-overlay">
         <div class="modal-content">
           <button class="modal-close" @click="cerrarModalRegistro">&times;</button>
-          <h3 style="margin-bottom: 10px;">Registro de Usuario</h3>
+          <h3 style="margin-bottom: 8px; font-size: 1.3rem;">Registro de Usuario</h3>
           <!-- Selector de rol en registro -->
           <div class="rol-selector">
             <label>Registrarse como:</label>
@@ -100,6 +100,10 @@
             <input v-model="nuevoNombre" id="nuevoNombre" type="text" required placeholder="Ej: Facundo" autocomplete="given-name" />
             <p v-if="registroErrorNombre" class="error">{{ registroErrorNombre }}</p>
 
+            <label for="nuevoApellido">Apellido</label>
+            <input v-model="nuevoApellido" id="nuevoApellido" type="text" required placeholder="Ej: Bas" autocomplete="family-name" />
+            <p v-if="registroErrorApellido" class="error">{{ registroErrorApellido }}</p>
+
             <label for="nuevoDni">DNI</label>
             <input v-model="nuevoDni" id="nuevoDni" type="number" required placeholder="Ej: 43232818" autocomplete="off" inputmode="numeric" />
             <p v-if="registroErrorDni" class="error">{{ registroErrorDni }}</p>
@@ -108,6 +112,10 @@
             <input v-model="nuevaClave" id="nuevaClave" type="password" required minlength="8" placeholder="Mínimo 8 caracteres" autocomplete="new-password" />
             <p v-if="registroErrorClave" class="error">{{ registroErrorClave }}</p>
 
+            <label for="nuevoAnio">Año de nacimiento</label>
+            <input v-model="nuevoAnio" id="nuevoAnio" type="number" min="1900" max="2100" required placeholder="Ej: 2001" autocomplete="bday-year" />
+            <p v-if="registroErrorAnio" class="error">{{ registroErrorAnio }}</p>
+
             <label for="nuevoEmail">Email</label>
             <input v-model="nuevoEmail" id="nuevoEmail" type="email" required placeholder="Ej: facubas39@gmail.com" autocomplete="email" />
             <p v-if="registroErrorEmail" class="error">{{ registroErrorEmail }}</p>
@@ -115,11 +123,11 @@
             <button type="submit" class="btn-registro">Registrarse</button>
           </form>
           <!-- Botón para verificar estado de validación (solo para enfermeras) -->
-          <div v-if="validacionRequestId && rolRegistro === 'enfermera'" style="margin-top: 15px; text-align: center;">
+          <div v-if="validacionRequestId && rolRegistro === 'enfermera'" style="margin-top: 12px; text-align: center;">
             <button 
               @click="verificarEstadoValidacion" 
               :disabled="verificandoValidacion"
-              style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;"
+              style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;"
             >
               {{ verificandoValidacion ? 'Verificando...' : 'Verificar Estado de Validación' }}
             </button>
@@ -127,10 +135,10 @@
           <p v-if="registroError" class="error">{{ registroError }}</p>
           <p v-if="registroExito" style="color: green; margin-top: 8px;">{{ registroExito }}</p>
           <!-- Botón para cerrar modal después del registro exitoso -->
-          <div v-if="registroExito" style="margin-top: 15px; text-align: center;">
+          <div v-if="registroExito" style="margin-top: 12px; text-align: center;">
             <button 
               @click="cerrarModalRegistro"
-              style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;"
+              style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;"
             >
               Cerrar
             </button>
@@ -174,7 +182,9 @@ export default {
       registroErrorNombre: "",
       registroErrorDni: "",
       registroErrorClave: "",
-      registroErrorEmail: ""
+      registroErrorEmail: "",
+      registroErrorApellido: "",
+      registroErrorAnio: ""
     };
   },
   methods: {
@@ -193,6 +203,8 @@ export default {
       this.registroErrorDni = "";
       this.registroErrorClave = "";
       this.registroErrorEmail = "";
+      this.registroErrorApellido = "";
+      this.registroErrorAnio = "";
     },
     cerrarModalRegistro() {
       this.mostrarModalRegistro = false;
@@ -263,9 +275,15 @@ export default {
       this.registroErrorDni = "";
       this.registroErrorClave = "";
       this.registroErrorEmail = "";
+      this.registroErrorApellido = "";
+      this.registroErrorAnio = "";
 
       if (!this.nuevoNombre) {
         this.registroErrorNombre = "El nombre es obligatorio.";
+        return;
+      }
+      if (!this.nuevoApellido) {
+        this.registroErrorApellido = "El apellido es obligatorio.";
         return;
       }
       if (!this.nuevoDni) {
@@ -278,6 +296,10 @@ export default {
       }
       if (!this.nuevoEmail) {
         this.registroErrorEmail = "El email es obligatorio.";
+        return;
+      }
+      if (!this.nuevoAnio) {
+        this.registroErrorAnio = "El año de nacimiento es obligatorio.";
         return;
       }
 
@@ -402,19 +424,21 @@ form {
   gap: 0;
 }
 .rol-selector {
-  margin-bottom: 22px;
+  margin-bottom: 16px;
 }
 .rol-buttons {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   justify-content: center;
   flex-wrap: wrap;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 .rol-btn {
   width: 100%;
   min-width: 0;
   margin-bottom: 0;
+  padding: 8px 12px;
+  font-size: 14px;
 }
 label {
   margin-bottom: 6px;
@@ -485,18 +509,19 @@ label {
 }
 label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   font-weight: bold;
+  font-size: 0.95rem;
 }
 input {
   width: 100%;
-  padding: 10px;
-  margin-bottom: 16px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
   border-radius: 4px;
   border: 1.5px solid #888;
   background: #fff;
   color: #181818;
-  font-size: 1.08rem;
+  font-size: 1rem;
   font-weight: 500;
 }
 input::placeholder {
@@ -557,10 +582,12 @@ button {
 }
 .modal-content {
   background: #fff;
-  padding: 28px 22px 18px 22px;
+  padding: 20px 16px 16px 16px;
   border-radius: 10px;
-  min-width: 320px;
+  min-width: 300px;
   max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
   box-shadow: 0 4px 24px rgba(0,0,0,0.18);
   position: relative;
   text-align: left;
@@ -568,16 +595,22 @@ button {
 .modal-close {
   position: absolute;
   top: 8px;
-  right: 0;
-  margin-right: -142px;
+  right: 12px;
   background: none;
   border: none;
-  font-size: 22px;
+  font-size: 20px;
   cursor: pointer;
   color: #e53935;
   font-weight: bold;
   transition: color 0.2s;
   z-index: 10;
+  padding: 4px;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .modal-close:hover {
   color: #b71c1c;
@@ -603,15 +636,73 @@ button {
 }
 .btn-registro {
   width: 100%;
-  padding: 11px;
+  padding: 10px;
   background: #1e88e5;
   color: white;
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: bold;
   letter-spacing: 0.5px;
-  margin-top: 10px; /* Added margin-top for spacing */
+  margin-top: 8px;
+}
+
+/* Media queries para mobile */
+@media (max-width: 768px) {
+  .modal-content {
+    padding: 16px 12px 12px 12px;
+    min-width: 280px;
+    max-height: 85vh;
+  }
+  
+  .modal-content h3 {
+    font-size: 1.2rem !important;
+    margin-bottom: 6px !important;
+  }
+  
+  .rol-selector {
+    margin-bottom: 12px;
+  }
+  
+  .rol-buttons {
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  
+  .rol-btn {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  
+  label {
+    margin-bottom: 4px;
+    font-size: 0.9rem;
+  }
+  
+  input {
+    padding: 6px 8px;
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+  }
+  
+  .btn-registro {
+    padding: 8px;
+    font-size: 15px;
+    margin-top: 6px;
+  }
+  
+  .error {
+    font-size: 0.9rem;
+    margin-top: 6px;
+  }
+  
+  .modal-close {
+    top: 6px;
+    right: 8px;
+    font-size: 18px;
+    width: 26px;
+    height: 26px;
+  }
 }
 </style>
