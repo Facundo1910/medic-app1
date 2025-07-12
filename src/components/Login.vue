@@ -95,20 +95,24 @@
               </button>
             </div>
           </div>
-          <form @submit.prevent autocomplete="off">
+          <form @submit.prevent="registrarUsuario">
             <label for="nuevoNombre">Nombre</label>
-            <input v-model="nuevoNombre" id="nuevoNombre" required placeholder="Ej: Juan" />
-            <label for="nuevoApellido">Apellido</label>
-            <input v-model="nuevoApellido" id="nuevoApellido" required placeholder="Ej: Perez" />
+            <input v-model="nuevoNombre" id="nuevoNombre" type="text" required placeholder="Ej: Facundo" autocomplete="given-name" />
+            <p v-if="registroErrorNombre" class="error">{{ registroErrorNombre }}</p>
+
             <label for="nuevoDni">DNI</label>
-            <input v-model="nuevoDni" id="nuevoDni" required type="text" maxlength="10" placeholder="Ej: 12345678" />
+            <input v-model="nuevoDni" id="nuevoDni" type="number" required placeholder="Ej: 43232818" autocomplete="off" inputmode="numeric" />
+            <p v-if="registroErrorDni" class="error">{{ registroErrorDni }}</p>
+
             <label for="nuevaClave">Clave</label>
-            <input v-model="nuevaClave" id="nuevaClave" type="password" required />
-            <label for="nuevoAnio">Año de nacimiento</label>
-            <input v-model="nuevoAnio" id="nuevoAnio" type="number" min="1900" max="2100" required />
+            <input v-model="nuevaClave" id="nuevaClave" type="password" required minlength="8" placeholder="Mínimo 8 caracteres" autocomplete="new-password" />
+            <p v-if="registroErrorClave" class="error">{{ registroErrorClave }}</p>
+
             <label for="nuevoEmail">Email</label>
-            <input v-model="nuevoEmail" id="nuevoEmail" type="email" required />
-            <button type="button" style="margin-top: 10px;" @click="registrarUsuario">Registrarse</button>
+            <input v-model="nuevoEmail" id="nuevoEmail" type="email" required placeholder="Ej: facubas39@gmail.com" autocomplete="email" />
+            <p v-if="registroErrorEmail" class="error">{{ registroErrorEmail }}</p>
+
+            <button type="submit" class="btn-registro">Registrarse</button>
           </form>
           <!-- Botón para verificar estado de validación (solo para enfermeras) -->
           <div v-if="validacionRequestId && rolRegistro === 'enfermera'" style="margin-top: 15px; text-align: center;">
@@ -166,7 +170,11 @@ export default {
       registroError: "",
       registroExito: "",
       validacionRequestId: null,
-      verificandoValidacion: false
+      verificandoValidacion: false,
+      registroErrorNombre: "",
+      registroErrorDni: "",
+      registroErrorClave: "",
+      registroErrorEmail: ""
     };
   },
   methods: {
@@ -181,6 +189,10 @@ export default {
       this.nuevoAnio = "";
       this.nuevoEmail = "";
       this.rolRegistro = "paciente";
+      this.registroErrorNombre = "";
+      this.registroErrorDni = "";
+      this.registroErrorClave = "";
+      this.registroErrorEmail = "";
     },
     cerrarModalRegistro() {
       this.mostrarModalRegistro = false;
@@ -245,19 +257,44 @@ export default {
       }
     },
     async registrarUsuario() {
+      this.registroError = "";
+      this.registroExito = "";
+      this.registroErrorNombre = "";
+      this.registroErrorDni = "";
+      this.registroErrorClave = "";
+      this.registroErrorEmail = "";
+
+      if (!this.nuevoNombre) {
+        this.registroErrorNombre = "El nombre es obligatorio.";
+        return;
+      }
+      if (!this.nuevoDni) {
+        this.registroErrorDni = "El DNI es obligatorio.";
+        return;
+      }
+      if (!this.nuevaClave) {
+        this.registroErrorClave = "La clave es obligatoria.";
+        return;
+      }
+      if (!this.nuevoEmail) {
+        this.registroErrorEmail = "El email es obligatorio.";
+        return;
+      }
+
+      if (!/^\d{7,10}$/.test(this.nuevoDni)) {
+        this.registroErrorDni = "El DNI debe ser numérico y tener entre 7 y 10 dígitos.";
+        return;
+      }
+      if (!this.esEmailValido(this.nuevoEmail)) {
+        this.registroErrorEmail = "El email ingresado no es válido.";
+        return;
+      }
+      if (!this.esClaveSegura(this.nuevaClave)) {
+        this.registroErrorClave = "La clave debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial.";
+        return;
+      }
+
       try {
-        this.registroError = "";
-        this.registroExito = "";
-        // Validar campos
-        if (!this.nuevoNombre || !this.nuevoApellido || !this.nuevoDni || !this.nuevaClave || !this.nuevoAnio || !this.nuevoEmail) {
-          this.registroError = "Todos los campos son obligatorios.";
-          return;
-        }
-        if (!/^\d{7,10}$/.test(this.nuevoDni)) {
-          this.registroError = "El DNI debe ser numérico y tener entre 7 y 10 dígitos.";
-          return;
-        }
-        // Validar que el DNI no exista
         const coleccion = this.rolRegistro === 'enfermera' ? 'enfermeras' : 'pacientes';
         const qDni = query(collection(db, coleccion), where("dni", "==", this.nuevoDni));
         const dniSnapshot = await getDocs(qDni);
@@ -265,17 +302,7 @@ export default {
           this.registroError = `Ya existe un ${this.rolRegistro} con ese DNI.`;
           return;
         }
-        // Validar email
-        if (!this.esEmailValido(this.nuevoEmail)) {
-          this.registroError = "El email ingresado no es válido.";
-          return;
-        }
-        // Validar clave segura
-        if (!this.esClaveSegura(this.nuevaClave)) {
-          this.registroError = "La clave debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial.";
-          return;
-        }
-        // Enfermera: validación por admin
+
         if (this.rolRegistro === 'enfermera') {
           const nurseData = {
             nombre: this.nuevoNombre,
@@ -301,7 +328,6 @@ export default {
             this.registroError = result.message;
           }
         } else {
-          // Paciente: registro directo
           await addDoc(collection(db, coleccion), {
             nombre: this.nuevoNombre,
             apellido: this.nuevoApellido,
@@ -574,5 +600,18 @@ button {
   margin-top: 5px;
   font-weight: 600;
   margin-bottom: 10px;
+}
+.btn-registro {
+  width: 100%;
+  padding: 11px;
+  background: #1e88e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  margin-top: 10px; /* Added margin-top for spacing */
 }
 </style>

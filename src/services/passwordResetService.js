@@ -10,9 +10,6 @@ function generateToken(length = 6) {
   return token;
 }
 
-/**
- * Solicita recuperación de contraseña: genera token y lo envía por email
- */
 export const requestPasswordReset = async (email) => {
   try {
     let userDoc = null;
@@ -35,7 +32,6 @@ export const requestPasswordReset = async (email) => {
       passwordResetToken: token,
       passwordResetExpires: expires
     });
-    // Enviar email con Brevo
     const apiKey = process.env.VUE_APP_BREVO_API_KEY;
     const url = "https://api.brevo.com/v3/smtp/email";
     const data = {
@@ -78,9 +74,6 @@ export const requestPasswordReset = async (email) => {
   }
 };
 
-/**
- * Cambia la contraseña usando el token recibido por email
- */
 export const resetPasswordWithToken = async (email, token, newPassword) => {
   try {
     let userDoc = null;

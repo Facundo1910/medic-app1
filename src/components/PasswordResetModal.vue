@@ -123,7 +123,6 @@ export default {
   z-index: 10;
   padding: 0;
   line-height: 1;
-  /* Elimina cualquier transición o efecto de hover */
 }
 .modal-close:hover {
   color: #d32f2f;
