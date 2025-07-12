@@ -2,7 +2,6 @@
   <div class="centrar-login">
     <div class="login-container">
       <h2>Iniciar Sesión</h2>
-      
       <!-- Selector de rol -->
       <div class="rol-selector">
         <label>Selecciona tu rol:</label>
@@ -30,11 +29,15 @@
           </button>
         </div>
       </div>
-
-      <form @submit.prevent="login">
-        <label for="usuario">Usuario</label>
-        <input v-model="usuario" id="usuario" required />
-  
+      <form @submit.prevent="login" autocomplete="off">
+        <template v-if="rolSeleccionado !== 'admin'">
+          <label for="dni">DNI</label>
+          <input v-model="dni" id="dni" required type="text" maxlength="10" placeholder="Ej: 12345678" />
+        </template>
+        <template v-else>
+          <label for="adminEmail">Email</label>
+          <input v-model="adminEmail" id="adminEmail" required type="email" placeholder="admin@ejemplo.com" />
+        </template>
         <label for="clave">Clave</label>
         <div class="input-contraseña">
           <input
@@ -51,29 +54,27 @@
             {{ mostrarClave ? '🙈' : '👁️' }}
           </span>
         </div>
-  
         <button type="submit">Ingresar</button>
+        <div style="margin-top: 10px;">
+          <button type="button" @click="abrirModalRecupero" style="background: none; color: #1e88e5; border: none; cursor: pointer; text-decoration: underline; font-size: 15px; width: 100%;">¿Olvidaste tu contraseña?</button>
+        </div>
       </form>
       <p v-if="error" class="error">{{ error }}</p>
-
       <div style="margin-top: 18px;">
         <button @click="abrirModalRegistro" type="button" style="background: none; color: #1e88e5; border: none; cursor: pointer; text-decoration: underline; font-size: 15px;">
           ¿No tienes cuenta? Registrate
         </button>
       </div>
-      
       <div style="margin-top: 10px; text-align: center;">
         <router-link to="/create-admin" style="color: #666; text-decoration: none; font-size: 13px;">
           🔧 Crear cuenta de administrador
         </router-link>
       </div>
-
       <!-- Modal de registro -->
       <div v-if="mostrarModalRegistro" class="modal-overlay">
         <div class="modal-content">
           <button class="modal-close" @click="cerrarModalRegistro">&times;</button>
           <h3 style="margin-bottom: 10px;">Registro de Usuario</h3>
-          
           <!-- Selector de rol en registro -->
           <div class="rol-selector">
             <label>Registrarse como:</label>
@@ -94,21 +95,13 @@
               </button>
             </div>
           </div>
-
-          <form @submit.prevent>
+          <form @submit.prevent autocomplete="off">
             <label for="nuevoNombre">Nombre</label>
-            <input 
-              v-model="nuevoNombre" 
-              @input="validarNombre"
-              id="nuevoNombre" 
-              required 
-              placeholder="Ej: JuanPerez (sin espacios)"
-              :class="{ 'error-input': nombreError }"
-            />
-            <div v-if="nombreError" class="error-message">
-              {{ nombreError }}
-            </div>
-            
+            <input v-model="nuevoNombre" id="nuevoNombre" required placeholder="Ej: Juan" />
+            <label for="nuevoApellido">Apellido</label>
+            <input v-model="nuevoApellido" id="nuevoApellido" required placeholder="Ej: Perez" />
+            <label for="nuevoDni">DNI</label>
+            <input v-model="nuevoDni" id="nuevoDni" required type="text" maxlength="10" placeholder="Ej: 12345678" />
             <label for="nuevaClave">Clave</label>
             <input v-model="nuevaClave" id="nuevaClave" type="password" required />
             <label for="nuevoAnio">Año de nacimiento</label>
@@ -117,7 +110,6 @@
             <input v-model="nuevoEmail" id="nuevoEmail" type="email" required />
             <button type="button" style="margin-top: 10px;" @click="registrarUsuario">Registrarse</button>
           </form>
-          
           <!-- Botón para verificar estado de validación (solo para enfermeras) -->
           <div v-if="validacionRequestId && rolRegistro === 'enfermera'" style="margin-top: 15px; text-align: center;">
             <button 
@@ -128,10 +120,8 @@
               {{ verificandoValidacion ? 'Verificando...' : 'Verificar Estado de Validación' }}
             </button>
           </div>
-          
           <p v-if="registroError" class="error">{{ registroError }}</p>
           <p v-if="registroExito" style="color: green; margin-top: 8px;">{{ registroExito }}</p>
-          
           <!-- Botón para cerrar modal después del registro exitoso -->
           <div v-if="registroExito" style="margin-top: 15px; text-align: center;">
             <button 
@@ -143,35 +133,45 @@
           </div>
         </div>
       </div>
+      <!-- Modal de recuperación de contraseña -->
+      <div v-if="mostrarModalRecupero" class="modal-overlay">
+        <div class="modal-content password-reset-modal">
+          <button class="modal-close" @click="cerrarModalRecupero">&times;</button>
+          <PasswordReset @back-to-login="cerrarModalRecupero" />
+        </div>
+      </div>
     </div>
   </div>
 </template>
-  
 <script>
 import { db } from "@/firebase";
 import { collection, query, where, getDocs, addDoc } from "firebase/firestore";
-import { sendNurseValidationRequest, checkNurseValidationStatus, isEmailJSConfigured } from "@/services/nurseValidationService";
-  
+import { sendNurseValidationRequest, checkNurseValidationStatus } from "@/services/nurseValidationService";
+import PasswordReset from './PasswordReset.vue';
 export default {
   name: "LoginPaciente",
+  components: { PasswordReset },
   data() {
     return {
-      usuario: "",
+      dni: "",
+      adminEmail: "",
       clave: "",
       mostrarClave: false,
       error: "",
-      rolSeleccionado: "paciente", // Por defecto paciente
-      rolRegistro: "paciente", // Para el registro
+      rolSeleccionado: "paciente",
+      rolRegistro: "paciente",
       mostrarModalRegistro: false,
+      mostrarModalRecupero: false,
       nuevoNombre: "",
+      nuevoApellido: "",
+      nuevoDni: "",
       nuevaClave: "",
       nuevoAnio: "",
       nuevoEmail: "",
       registroError: "",
       registroExito: "",
       validacionRequestId: null,
-      verificandoValidacion: false,
-      nombreError: "" // Nuevo campo para el error de nombre
+      verificandoValidacion: false
     };
   },
   methods: {
@@ -180,11 +180,12 @@ export default {
       this.registroError = "";
       this.registroExito = "";
       this.nuevoNombre = "";
+      this.nuevoApellido = "";
+      this.nuevoDni = "";
       this.nuevaClave = "";
       this.nuevoAnio = "";
       this.nuevoEmail = "";
       this.rolRegistro = "paciente";
-      this.nombreError = ""; // Limpiar error de nombre al abrir modal
     },
     cerrarModalRegistro() {
       this.mostrarModalRegistro = false;
@@ -192,63 +193,57 @@ export default {
       this.registroExito = "";
       this.validacionRequestId = null;
       this.verificandoValidacion = false;
-      this.nombreError = "";
+    },
+    abrirModalRecupero() {
+      this.mostrarModalRecupero = true;
+    },
+    cerrarModalRecupero() {
+      this.mostrarModalRecupero = false;
     },
     async login() {
       this.error = "";
       try {
-        // Primero verificar si es un administrador
-        const qAdmin = query(
-          collection(db, "admins"),
-          where("nombre", "==", this.usuario),
-          where("clave", "==", this.clave)
-        );
-        const adminSnapshot = await getDocs(qAdmin);
-        
-        if (!adminSnapshot.empty) {
-          // Es un administrador
-          const admin = adminSnapshot.docs[0].data();
-          admin.rol = 'admin';
-          admin.id = adminSnapshot.docs[0].id;
-          
-          localStorage.setItem('usuario', JSON.stringify(admin));
-          this.$router.push("/admin");
-          return;
+        // Admin login por email
+        if (this.rolSeleccionado === 'admin') {
+          const qAdmin = query(
+            collection(db, "admins"),
+            where("email", "==", this.adminEmail),
+            where("clave", "==", this.clave)
+          );
+          const adminSnapshot = await getDocs(qAdmin);
+          if (!adminSnapshot.empty) {
+            const admin = adminSnapshot.docs[0].data();
+            admin.rol = 'admin';
+            admin.id = adminSnapshot.docs[0].id;
+            localStorage.setItem('usuario', JSON.stringify(admin));
+            this.$router.push("/admin");
+            return;
+          }
         }
-        
-        // Si no es admin, verificar según el rol seleccionado
+        // Enfermera o paciente
         const coleccion = this.rolSeleccionado === 'enfermera' ? 'enfermeras' : 'pacientes';
-        
         const q = query(
           collection(db, coleccion),
-          where("nombre", "==", this.usuario),
+          where("dni", "==", this.dni),
           where("clave", "==", this.clave)
         );
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
           const usuario = querySnapshot.docs[0].data();
-          // Agregar el rol al objeto del usuario
           usuario.rol = this.rolSeleccionado;
           usuario.id = querySnapshot.docs[0].id;
-          
-          // Para enfermeras, verificar que estén aprobadas
-          if (this.rolSeleccionado === 'enfermera') {
-            if (!usuario.aprobadoPor) {
-              this.error = "Tu cuenta de enfermera aún no ha sido aprobada. Te notificaremos por email cuando sea aprobada.";
-              return;
-            }
+          if (this.rolSeleccionado === 'enfermera' && !usuario.aprobadoPor) {
+            this.error = "Tu cuenta de enfermera aún no ha sido aprobada. Te notificaremos por email cuando sea aprobada.";
+            return;
           }
-          
           localStorage.setItem('usuario', JSON.stringify(usuario));
-          
-          // Redirigir según el rol
           if (this.rolSeleccionado === 'enfermera') {
             this.$router.push("/enfermera");
           } else {
             this.$router.push("/paciente");
           }
         } else {
-          this.error = "Usuario o clave incorrectos";
+          this.error = this.rolSeleccionado === 'admin' ? "Email o clave incorrectos" : "DNI o clave incorrectos";
         }
       } catch (e) {
         this.error = "Error al conectar con la base de datos";
@@ -256,174 +251,97 @@ export default {
     },
     async registrarUsuario() {
       try {
-        console.log('🚀 INICIO: registrarUsuario ejecutado');
-        alert('registrarUsuario ejecutado');
-        console.log('🔍 Método registrarUsuario ejecutado');
-        console.log('📝 Datos del formulario:', {
-          nombre: this.nuevoNombre,
-          clave: this.nuevaClave,
-          anio: this.nuevoAnio,
-          email: this.nuevoEmail,
-          rol: this.rolRegistro
-        });
-      
         this.registroError = "";
         this.registroExito = "";
-        this.nombreError = ""; // Limpiar error de nombre al intentar registrar
-        
-        // Validar que la clave sea segura
-        console.log('🔍 Validando clave...');
-        if (!this.esClaveSegura(this.nuevaClave)) {
-          console.log('❌ Clave no válida');
-          this.registroError = "La clave debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial.";
+        // Validar campos
+        if (!this.nuevoNombre || !this.nuevoApellido || !this.nuevoDni || !this.nuevaClave || !this.nuevoAnio || !this.nuevoEmail) {
+          this.registroError = "Todos los campos son obligatorios.";
           return;
         }
-        console.log('✅ Clave válida');
-        
-        // Validar que el email sea válido
-        console.log('🔍 Validando email...');
+        if (!/^\d{7,10}$/.test(this.nuevoDni)) {
+          this.registroError = "El DNI debe ser numérico y tener entre 7 y 10 dígitos.";
+          return;
+        }
+        // Validar que el DNI no exista
+        const coleccion = this.rolRegistro === 'enfermera' ? 'enfermeras' : 'pacientes';
+        const qDni = query(collection(db, coleccion), where("dni", "==", this.nuevoDni));
+        const dniSnapshot = await getDocs(qDni);
+        if (!dniSnapshot.empty) {
+          this.registroError = `Ya existe un ${this.rolRegistro} con ese DNI.`;
+          return;
+        }
+        // Validar email
         if (!this.esEmailValido(this.nuevoEmail)) {
-          console.log('❌ Email no válido');
           this.registroError = "El email ingresado no es válido.";
           return;
         }
-        console.log('✅ Email válido');
-
-        // Validar nombre
-        console.log('🔍 Validando nombre...');
-        if (!this.validarNombre()) {
-          console.log('❌ Nombre no válido');
-          this.registroError = '❌ Por favor, corrige los errores en el formulario.';
+        // Validar clave segura
+        if (!this.esClaveSegura(this.nuevaClave)) {
+          this.registroError = "La clave debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial.";
           return;
         }
-        console.log('✅ Nombre válido');
-        
-        // Determinar la colección según el rol
-        const coleccion = this.rolRegistro === 'enfermera' ? 'enfermeras' : 'pacientes';
-        
-        // Validar que no exista ya un usuario con ese nombre en la colección correspondiente
-        const q = query(
-          collection(db, coleccion),
-          where("nombre", "==", this.nuevoNombre)
-        );
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-          this.registroError = `Ya existe un ${this.rolRegistro} con ese nombre.`;
-          return;
-        }
-        
-        // Si es enfermera, usar el sistema de validación
+        // Enfermera: validación por admin
         if (this.rolRegistro === 'enfermera') {
-          if (!isEmailJSConfigured()) {
-            this.registroError = "El sistema de validación no está configurado. Contacta al administrador.";
-            return;
-          }
-          
           const nurseData = {
             nombre: this.nuevoNombre,
+            apellido: this.nuevoApellido,
+            dni: this.nuevoDni,
             clave: this.nuevaClave,
             anioNacimiento: this.nuevoAnio,
             email: this.nuevoEmail,
             rol: this.rolRegistro
           };
-          
           const result = await sendNurseValidationRequest(nurseData);
-          
           if (result.success) {
             this.registroExito = result.message;
             this.validacionRequestId = result.requestId;
             this.nuevoNombre = "";
+            this.nuevoApellido = "";
+            this.nuevoDni = "";
             this.nuevaClave = "";
             this.nuevoAnio = "";
             this.nuevoEmail = "";
-            
-            // Cerrar modal después de 3 segundos
-            setTimeout(() => {
-              this.cerrarModalRegistro();
-            }, 3000);
+            setTimeout(() => { this.cerrarModalRegistro(); }, 3000);
           } else {
             this.registroError = result.message;
           }
         } else {
-          // Para pacientes, registro directo
+          // Paciente: registro directo
           await addDoc(collection(db, coleccion), {
             nombre: this.nuevoNombre,
+            apellido: this.nuevoApellido,
+            dni: this.nuevoDni,
             clave: this.nuevaClave,
             anioNacimiento: this.nuevoAnio,
             email: this.nuevoEmail,
             rol: this.rolRegistro
           });
-          
           this.registroExito = "¡Registro exitoso! Ya puedes iniciar sesión.";
           this.nuevoNombre = "";
+          this.nuevoApellido = "";
+          this.nuevoDni = "";
           this.nuevaClave = "";
           this.nuevoAnio = "";
           this.nuevoEmail = "";
-          
-          // Cerrar modal después de 2 segundos para pacientes
-          setTimeout(() => {
-            this.cerrarModalRegistro();
-          }, 2000);
+          setTimeout(() => { this.cerrarModalRegistro(); }, 2000);
         }
       } catch (e) {
-        console.log('❌ Error en el registro:', e);
         this.registroError = "Error al registrar usuario.";
       }
-      console.log('🏁 Fin del método registrarUsuario');
     },
     esClaveSegura(clave) {
-      // Al menos una minúscula, una mayúscula, un número y un carácter especial, mínimo 8 caracteres
       const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
       return regex.test(clave);
     },
     esEmailValido(email) {
-      // Validación básica de email
       const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       return regex.test(email);
     },
-    validarNombre() {
-      const nombre = this.nuevoNombre;
-      
-      // Limpiar espacios al inicio y final
-      this.nuevoNombre = nombre.trim();
-      
-      // Si está vacío, no mostrar error
-      if (nombre.length === 0) {
-        this.nombreError = '';
-        return false;
-      }
-      
-      // Verificar si contiene espacios
-      if (nombre.includes(' ')) {
-        this.nombreError = '❌ El nombre no puede contener espacios. Usa solo letras, números y guiones.';
-        return false;
-      }
-      
-      // Verificar longitud mínima
-      if (nombre.length < 3) {
-        this.nombreError = '❌ El nombre debe tener al menos 3 caracteres.';
-        return false;
-      }
-      
-      // Verificar caracteres válidos (solo letras, números, guiones y guiones bajos)
-      const regex = /^[a-zA-Z0-9_-]+$/;
-      if (!regex.test(nombre)) {
-        this.nombreError = '❌ Solo se permiten letras, números, guiones (-) y guiones bajos (_).';
-        return false;
-      }
-      
-      // Si pasa todas las validaciones, limpiar error
-      this.nombreError = '';
-      return true;
-    },
-    
     async verificarEstadoValidacion() {
       if (!this.validacionRequestId) return;
-      
       this.verificandoValidacion = true;
       try {
         const result = await checkNurseValidationStatus(this.validacionRequestId);
-        
         if (result.success) {
           if (result.estado === 'aprobado') {
             this.registroExito = "¡Tu cuenta ha sido aprobada! Ya puedes iniciar sesión.";
@@ -446,7 +364,6 @@ export default {
   }
 };
 </script>
-  
 <style scoped>
 .login-container {
   max-width: 400px;
