@@ -5,6 +5,7 @@ import HomeEnfermera from "@/components/HomeEnfermera.vue";
 import HomePaciente from "@/components/HomePaciente.vue";
 import AdminPanel from "@/components/AdminPanel.vue";
 import CreateAdmin from "@/components/CreateAdmin.vue";
+import AdminLogin from "@/components/AdminLogin.vue";
 
 Vue.use(Router);
 
@@ -29,6 +30,14 @@ const router = new Router({
     },
     { 
       path: "/create-admin", 
+      component: CreateAdmin
+    },
+    { 
+      path: "/login-admin", 
+      component: AdminLogin
+    },
+    { 
+      path: "/register-admin", 
       component: CreateAdmin
     },
     { path: "*", redirect: "/" }

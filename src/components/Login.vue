@@ -20,13 +20,6 @@
           >
             👤 Paciente/Familia
           </button>
-          <button 
-            @click="rolSeleccionado = 'admin'" 
-            :class="{ active: rolSeleccionado === 'admin' }"
-            class="rol-btn"
-          >
-            🔧 Administrador
-          </button>
         </div>
       </div>
       <form @submit.prevent="login" autocomplete="off">
@@ -55,19 +48,17 @@
           </span>
         </div>
         <button type="submit">Ingresar</button>
-        <div style="margin-top: 10px;">
-          <button type="button" @click="mostrarModalRecupero = true" style="background: none; color: #1e88e5; border: none; cursor: pointer; text-decoration: underline; font-size: 15px; width: 100%;">¿Olvidaste tu contraseña?</button>
-        </div>
       </form>
       <p v-if="error" class="error">{{ error }}</p>
-      <div style="margin-top: 18px;">
-        <button @click="abrirModalRegistro" type="button" style="background: none; color: #1e88e5; border: none; cursor: pointer; text-decoration: underline; font-size: 15px;">
-          ¿No tienes cuenta? Registrate
-        </button>
-      </div>
-      <div style="margin-top: 10px; text-align: center;">
-        <router-link to="/create-admin" style="color: #666; text-decoration: none; font-size: 13px;">
-          🔧 Crear cuenta de administrador
+      <div class="links-secundarios">
+        <div class="links-principales">
+          <button type="button" @click="mostrarModalRecupero = true" class="link-btn">¿Olvidaste tu contraseña?</button>
+          <span class="link-separador">|</span>
+          <button @click="abrirModalRegistro" type="button" class="link-btn">¿No tienes cuenta? Regístrate</button>
+        </div>
+        <div class="link-divisor"></div>
+        <router-link to="/login-admin" class="link-admin">
+          <span style="font-size: 1.1em; vertical-align: middle;">🔧</span> Ingresar como administrador
         </router-link>
       </div>
       <!-- Modal de registro -->
@@ -646,6 +637,54 @@ button {
   font-weight: bold;
   letter-spacing: 0.5px;
   margin-top: 8px;
+}
+.links-secundarios {
+  margin-top: 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.links-principales {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.link-btn {
+  background: none;
+  color: #1e88e5;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 15px;
+  padding: 0 2px;
+}
+.link-separador {
+  color: #bbb;
+  font-size: 15px;
+  user-select: none;
+}
+.link-divisor {
+  width: 100%;
+  max-width: 220px;
+  height: 1px;
+  background: linear-gradient(90deg, #eee 0%, #ccc 50%, #eee 100%);
+  margin: 10px 0 8px 0;
+}
+.link-admin {
+  color: #888;
+  text-decoration: none;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.2s;
+}
+.link-admin:hover {
+  color: #1e88e5;
+  text-decoration: underline;
 }
 
 /* Media queries para mobile */
