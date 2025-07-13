@@ -4,7 +4,7 @@
       <header class="header">
         <div class="logo">🩺 Panel de Enfermera</div>
         <div class="usuario">
-          <span class="nombre-usuario">{{ enfermera.nombre }}</span>
+          <span class="nombre-usuario">{{ enfermera.apellido }}, {{ enfermera.nombre }}</span>
           <button @click="logout" class="btn-logout">
             Cerrar sesión
           </button>
@@ -19,7 +19,7 @@
             <select v-model="pacienteSeleccionado" @change="cambiarPaciente" class="paciente-select">
               <option value="">-- Selecciona un paciente --</option>
               <option v-for="paciente in listaPacientes" :key="paciente.id" :value="paciente.id">
-                {{ paciente.nombre }}
+                {{ paciente.nombre }} {{ paciente.apellido }} (DNI: {{ paciente.dni }})
               </option>
             </select>
             <button @click="cargarPacientes" class="btn-refresh">🔄</button>
@@ -29,9 +29,10 @@
   
       <!-- Información del paciente seleccionado -->
       <section v-if="pacienteActual" class="paciente-info">
-        <h2>Paciente: {{ pacienteActual.nombre }}</h2>
+        <h2>Paciente: {{ pacienteActual.apellido }}, {{ pacienteActual.nombre }}</h2>
         <PacienteCard
           :nombre="pacienteActual.nombre"
+          :apellido="pacienteActual.apellido"
           :diagnosticos="diagnosticosSeleccionados || []"
           :exito="guardadoDiagnosticoExito"
           :error="guardadoDiagnosticoError"
@@ -69,35 +70,56 @@
       
         <section class="historial card">
           <h2>Historial de medicación</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Medicamento</th>
-                <th>Dosis</th>
-                <th>Fecha y hora</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(item, index) in historial" :key="index">
-                <td>{{ item.medicamento }}</td>
-                <td>{{ item.dosis }} mg</td>
-                <td>{{ item.fechaHora }}</td>
-                <td>
-                  <button @click="eliminarMedicacion(index)" class="btn-eliminar">
-                    🗑️ Eliminar
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <div v-if="historial.length > 0">
+            <div v-for="(grupo, key) in historialAgrupado" :key="key" class="grupo-mes">
+              <div class="grupo-header" @click="toggleGrupo(key)">
+                <span style="font-weight:bold; cursor:pointer;">
+                  <span v-if="grupoAbierto[key]">▼</span>
+                  <span v-else>▶</span>
+                  {{ key }}
+                </span>
+              </div>
+              <div v-show="grupoAbierto[key]">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Medicamento</th>
+                      <th>Dosis</th>
+                      <th>Fecha y hora</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(item, idx) in grupoPaginado(key)" :key="idx">
+                      <td>{{ item.medicamento }}</td>
+                      <td>{{ item.dosis }} mg</td>
+                      <td>{{ item.fechaHora }}</td>
+                      <td>
+                        <button @click="eliminarMedicacionPorGrupo(key, idx)" class="btn-eliminar">
+                          🗑️ Eliminar
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="paginacion">
+                  <button @click="cambiarPagina(key, -1)" :disabled="paginas[key] === 1">Anterior</button>
+                  <span>Página {{ paginas[key] }} de {{ totalPaginas(key) }}</span>
+                  <button @click="cambiarPagina(key, 1)" :disabled="paginas[key] === totalPaginas(key)">Siguiente</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-else class="no-data">
+            <p>No hay medicaciones registradas</p>
+          </div>
         </section>
       </div>
   
       <!-- Mensaje cuando no hay paciente seleccionado -->
       <div v-else class="no-paciente">
         <div class="card">
-          <h2>👋 Bienvenida, {{ enfermera.nombre }}</h2>
+          <h2>👋 Bienvenido/a, {{ enfermera.apellido }}, {{ enfermera.nombre }}</h2>
           <p>Selecciona un paciente de la lista para comenzar a gestionar su información médica.</p>
         </div>
       </div>
@@ -136,7 +158,33 @@ export default {
       guardadoDiagnosticoError: false,
       errorFechaMedicacion: "",
       emailNotificationStatus: "", // Para mostrar el estado del envío de email
+      grupoAbierto: {},
+      paginas: {},
+      porPagina: 10
     };
+  },
+  computed: {
+    historialAgrupado() {
+      // Agrupa el historial por mes/año
+      const grupos = {};
+      this.historial.forEach(item => {
+        const fecha = new Date(item.fechaHora);
+        if (isNaN(fecha)) return;
+        const key = fecha.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
+        if (!grupos[key]) grupos[key] = [];
+        grupos[key].push(item);
+      });
+      // Ordenar por mes/año descendente
+      return Object.fromEntries(
+        Object.entries(grupos).sort((a, b) => {
+          const [mesA, anioA] = a[0].split(' ');
+          const [mesB, anioB] = b[0].split(' ');
+          const fechaA = new Date(`${anioA}-${this.mesANumero(mesA)}-01`);
+          const fechaB = new Date(`${anioB}-${this.mesANumero(mesB)}-01`);
+          return fechaB - fechaA;
+        })
+      );
+    }
   },
   async mounted() {
     try {
@@ -164,15 +212,27 @@ export default {
       console.error("Error al cargar datos:", e);
       alert("Error al cargar los datos");
     }
+    // Abrir el grupo del mes actual por defecto
+    this.$nextTick(() => {
+      const hoy = new Date();
+      const key = hoy.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
+      this.$set(this.grupoAbierto, key, true);
+    });
   },
   methods: {
     async cargarPacientes() {
       try {
         const querySnapshot = await getDocs(collection(db, "pacientes"));
-        this.listaPacientes = querySnapshot.docs.map(doc => ({
+        const todosLosPacientes = querySnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         }));
+        // Filtrar solo los pacientes asignados a la enfermera logueada
+        if (this.enfermera.pacientesAsignados && Array.isArray(this.enfermera.pacientesAsignados)) {
+          this.listaPacientes = todosLosPacientes.filter(p => this.enfermera.pacientesAsignados.includes(p.id));
+        } else {
+          this.listaPacientes = [];
+        }
       } catch (e) {
         console.error("Error al cargar pacientes:", e);
       }
@@ -354,6 +414,39 @@ export default {
         return 'email-status email-info';
       }
       return 'email-status';
+    },
+    mesANumero(mes) {
+      const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+      return (meses.indexOf(mes.toLowerCase()) + 1).toString().padStart(2, '0');
+    },
+    toggleGrupo(key) {
+      this.$set(this.grupoAbierto, key, !this.grupoAbierto[key]);
+      if (!this.paginas[key]) this.$set(this.paginas, key, 1);
+    },
+    grupoPaginado(key) {
+      const grupo = this.historialAgrupado[key] || [];
+      const pagina = this.paginas[key] || 1;
+      const inicio = (pagina - 1) * this.porPagina;
+      return grupo.slice(inicio, inicio + this.porPagina);
+    },
+    totalPaginas(key) {
+      const grupo = this.historialAgrupado[key] || [];
+      return Math.ceil(grupo.length / this.porPagina) || 1;
+    },
+    cambiarPagina(key, delta) {
+      const nueva = (this.paginas[key] || 1) + delta;
+      if (nueva >= 1 && nueva <= this.totalPaginas(key)) {
+        this.$set(this.paginas, key, nueva);
+      }
+    },
+    eliminarMedicacionPorGrupo(key, idx) {
+      const grupo = this.historialAgrupado[key] || [];
+      const pagina = this.paginas[key] || 1;
+      const inicio = (pagina - 1) * this.porPagina;
+      const indexGlobal = this.historial.findIndex(item => item === grupo[inicio + idx]);
+      if (indexGlobal !== -1) {
+        this.eliminarMedicacion(indexGlobal);
+      }
     }
   }
 };
@@ -583,6 +676,49 @@ th {
 .historial.card {
   margin-top: 32px !important;
   margin-bottom: 32px !important;
+}
+
+.grupo-mes {
+  border: 1px solid #eee;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+.grupo-header {
+  background: #f8f9fa;
+  padding: 12px 15px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  color: #333;
+  border-bottom: 1px solid #eee;
+}
+.paginacion {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 15px;
+  padding-bottom: 15px;
+}
+.paginacion button {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+.paginacion button:hover:not(:disabled) {
+  background: #0056b3;
+}
+.paginacion button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  color: #666;
 }
 
 @media (max-width: 768px) {
