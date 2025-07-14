@@ -1,6 +1,5 @@
 <template>
   <div class="card">
-    <p><strong>Nombre:</strong> {{ nombre }}</p>
     <p><strong>Diagnóstico(s):</strong>
       <span v-if="diagnosticos.length === 0">Ninguno</span>
       <span v-else class="diagnosticos-lista">{{ diagnosticos.join(', ') }}</span>
@@ -16,6 +15,7 @@ export default {
   name: "PacienteCard",
   props: {
     nombre: { type: String, required: true },
+    apellido: { type: String, required: true },
     diagnosticos: { type: Array, required: true },
     exito: { type: Boolean, default: false },
     error: { type: Boolean, default: false }

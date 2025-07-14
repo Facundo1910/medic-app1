@@ -103,9 +103,9 @@
             <input v-model="nuevaClave" id="nuevaClave" type="password" required minlength="8" placeholder="Mínimo 8 caracteres" autocomplete="new-password" />
             <p v-if="registroErrorClave" class="error">{{ registroErrorClave }}</p>
 
-            <label for="nuevoAnio">Año de nacimiento</label>
-            <input v-model="nuevoAnio" id="nuevoAnio" type="number" min="1900" max="2100" required placeholder="Ej: 2001" autocomplete="bday-year" />
-            <p v-if="registroErrorAnio" class="error">{{ registroErrorAnio }}</p>
+            <label for="nuevaFechaNacimiento">Fecha de nacimiento</label>
+            <input v-model="nuevaFechaNacimiento" id="nuevaFechaNacimiento" type="date" required autocomplete="bday" :max="maxFechaNacimiento" />
+            <p v-if="registroErrorFechaNacimiento" class="error">{{ registroErrorFechaNacimiento }}</p>
 
             <label for="nuevoEmail">Email</label>
             <input v-model="nuevoEmail" id="nuevoEmail" type="email" required placeholder="Ej: facubas39@gmail.com" autocomplete="email" />
@@ -164,7 +164,7 @@ export default {
       nuevoApellido: "",
       nuevoDni: "",
       nuevaClave: "",
-      nuevoAnio: "",
+      nuevaFechaNacimiento: "",
       nuevoEmail: "",
       registroError: "",
       registroExito: "",
@@ -175,8 +175,13 @@ export default {
       registroErrorClave: "",
       registroErrorEmail: "",
       registroErrorApellido: "",
-      registroErrorAnio: ""
+      registroErrorFechaNacimiento: ""
     };
+  },
+  computed: {
+    maxFechaNacimiento() {
+      return new Date().toISOString().split('T')[0];
+    }
   },
   methods: {
     abrirModalRegistro() {
@@ -187,7 +192,7 @@ export default {
       this.nuevoApellido = "";
       this.nuevoDni = "";
       this.nuevaClave = "";
-      this.nuevoAnio = "";
+      this.nuevaFechaNacimiento = "";
       this.nuevoEmail = "";
       this.rolRegistro = "paciente";
       this.registroErrorNombre = "";
@@ -195,7 +200,7 @@ export default {
       this.registroErrorClave = "";
       this.registroErrorEmail = "";
       this.registroErrorApellido = "";
-      this.registroErrorAnio = "";
+      this.registroErrorFechaNacimiento = "";
     },
     cerrarModalRegistro() {
       this.mostrarModalRegistro = false;
@@ -267,7 +272,7 @@ export default {
       this.registroErrorClave = "";
       this.registroErrorEmail = "";
       this.registroErrorApellido = "";
-      this.registroErrorAnio = "";
+      this.registroErrorFechaNacimiento = "";
 
       if (!this.nuevoNombre) {
         this.registroErrorNombre = "El nombre es obligatorio.";
@@ -289,8 +294,8 @@ export default {
         this.registroErrorEmail = "El email es obligatorio.";
         return;
       }
-      if (!this.nuevoAnio) {
-        this.registroErrorAnio = "El año de nacimiento es obligatorio.";
+      if (!this.nuevaFechaNacimiento) {
+        this.registroErrorFechaNacimiento = "La fecha de nacimiento es obligatoria.";
         return;
       }
 
@@ -322,7 +327,7 @@ export default {
             apellido: this.nuevoApellido,
             dni: this.nuevoDni,
             clave: this.nuevaClave,
-            anioNacimiento: this.nuevoAnio,
+            fechaNacimiento: this.nuevaFechaNacimiento,
             email: this.nuevoEmail,
             rol: this.rolRegistro
           };
@@ -334,7 +339,7 @@ export default {
             this.nuevoApellido = "";
             this.nuevoDni = "";
             this.nuevaClave = "";
-            this.nuevoAnio = "";
+            this.nuevaFechaNacimiento = "";
             this.nuevoEmail = "";
             setTimeout(() => { this.cerrarModalRegistro(); }, 3000);
           } else {
@@ -346,7 +351,7 @@ export default {
             apellido: this.nuevoApellido,
             dni: this.nuevoDni,
             clave: this.nuevaClave,
-            anioNacimiento: this.nuevoAnio,
+            fechaNacimiento: this.nuevaFechaNacimiento,
             email: this.nuevoEmail,
             rol: this.rolRegistro
           });
@@ -355,7 +360,7 @@ export default {
           this.nuevoApellido = "";
           this.nuevoDni = "";
           this.nuevaClave = "";
-          this.nuevoAnio = "";
+          this.nuevaFechaNacimiento = "";
           this.nuevoEmail = "";
           setTimeout(() => { this.cerrarModalRegistro(); }, 2000);
         }
