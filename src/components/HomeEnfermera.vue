@@ -68,6 +68,43 @@
           </div>
         </section>
       
+        <section class="signos-vitales-form card">
+          <h2 style="margin-top:0;">Registrar signos vitales</h2>
+          <form @submit.prevent="registrarSignosVitales">
+            <div class="form-row">
+              <label>Temperatura corporal (°C):</label>
+              <input v-model.number="signos.temperatura" type="number" step="0.1" min="30" max="45" required />
+            </div>
+            <div class="form-row">
+              <label>Presión arterial (mmHg):</label>
+              <input v-model="signos.presion" type="text" pattern="^\d{2,3}/\d{2,3}$" placeholder="Ej: 120/80" required />
+            </div>
+            <div class="form-row">
+              <label>Frecuencia cardíaca (lpm):</label>
+              <input v-model.number="signos.frecuenciaCardiaca" type="number" min="30" max="200" required />
+            </div>
+            <div class="form-row">
+              <label>Frecuencia respiratoria (resps/min):</label>
+              <input v-model.number="signos.frecuenciaRespiratoria" type="number" min="5" max="40" required />
+            </div>
+            <div class="form-row">
+              <label>Saturación de oxígeno (% SpO2):</label>
+              <input v-model.number="signos.saturacionOxigeno" type="number" min="50" max="100" required />
+            </div>
+            <div class="form-row">
+              <label>Glucemia (mg/dL, opcional):</label>
+              <input v-model.number="signos.glucemia" type="number" min="20" max="600" />
+            </div>
+            <div class="form-row">
+              <label>Fecha y hora:</label>
+              <input v-model="signos.fechaHora" type="datetime-local" required />
+            </div>
+            <button type="submit" class="btn-registrar-signos">Registrar signos vitales</button>
+            <span v-if="signosExito" class="exito">Signos vitales registrados ✔️</span>
+            <span v-if="signosError" class="error">Error al registrar signos vitales</span>
+          </form>
+        </section>
+      
         <section class="historial card">
           <h2>Historial de medicación</h2>
           <div v-if="historial.length > 0">
@@ -123,6 +160,12 @@
           <p>Selecciona un paciente de la lista para comenzar a gestionar su información médica.</p>
         </div>
       </div>
+      <!-- Después de la info del paciente seleccionado, mostrar los gráficos si hay signos vitales -->
+      <section v-if="pacienteActual && pacienteActual.signosVitales && pacienteActual.signosVitales.length > 0" class="signos-vitales">
+        <div class="card">
+          <SignosVitalesCharts :signosVitales="pacienteActual.signosVitales" :titulo="'Signos Vitales de ' + pacienteActual.nombre" />
+        </div>
+      </section>
     </div>
   </div>
 </template>
@@ -133,11 +176,14 @@ import { collection, getDocs, updateDoc, arrayUnion, arrayRemove, doc } from "fi
 import PacienteCard from "@/components/commons/PacienteCard.vue";
 import DiagnosticoSelector from "@/components/commons/DiagnosticoSelector.vue";
 import MedicacionForm from "@/components/commons/MedicacionForm.vue";
-import { sendMedicationNotification, isEmailJSConfigured } from "@/services/emailService";
+import { sendMedicationNotification, isEmailJSConfigured, sendVitalSignsNotification } from "@/services/emailService";
+import SignosVitalesCharts from './commons/SignosVitalesCharts.vue';
+import { generarPDFSignosYMedicaciones } from '@/utils/helpers';
+import { sendPatientReportWithAttachment } from '@/services/emailService';
 
 export default {
   name: "HomeEnfermera",
-  components: { PacienteCard, DiagnosticoSelector, MedicacionForm },
+  components: { PacienteCard, DiagnosticoSelector, MedicacionForm, SignosVitalesCharts },
   data() {
     return {
       enfermera: {
@@ -160,7 +206,18 @@ export default {
       emailNotificationStatus: "", // Para mostrar el estado del envío de email
       grupoAbierto: {},
       paginas: {},
-      porPagina: 10
+      porPagina: 10,
+      signos: {
+        temperatura: '',
+        presion: '',
+        frecuenciaCardiaca: '',
+        frecuenciaRespiratoria: '',
+        saturacionOxigeno: '',
+        glucemia: '',
+        fechaHora: new Date().toISOString().slice(0,16)
+      },
+      signosExito: false,
+      signosError: false,
     };
   },
   computed: {
@@ -238,6 +295,56 @@ export default {
       }
     },
     
+    async borrarSignosVitalesViejosPaciente(paciente) {
+      if (!paciente || !paciente.id) return;
+      const ahora = new Date();
+      const tresDiasMs = 3 * 24 * 60 * 60 * 1000;
+      let signosNuevos = [];
+      let huboCambios = false;
+
+      if (Array.isArray(paciente.signosVitales)) {
+        signosNuevos = paciente.signosVitales.filter(sv => {
+          const fecha = new Date(sv.fechaHora);
+          return ahora - fecha <= tresDiasMs;
+        });
+        if (signosNuevos.length !== paciente.signosVitales.length) huboCambios = true;
+      }
+      if (huboCambios) {
+        // 1. Generar y enviar PDF antes de borrar
+        try {
+          // Buscar el canvas del gráfico combinado
+          await this.$nextTick();
+          const chartCanvas = document.querySelector('.grafico-combinado canvas');
+          const pdfBlob = await generarPDFSignosYMedicaciones(
+            chartCanvas,
+            paciente.medicaciones || [],
+            paciente
+          );
+          // Convertir Blob a base64
+          const base64pdf = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64 = reader.result.split(',')[1];
+              resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(pdfBlob);
+          });
+          await sendPatientReportWithAttachment(paciente, base64pdf);
+        } catch (e) {
+          console.error('Error generando o enviando el PDF:', e);
+        }
+        // 2. Borrar signos vitales viejos
+        const docRef = doc(db, "pacientes", paciente.id);
+        await updateDoc(docRef, {
+          signosVitales: signosNuevos
+        });
+        // Actualizar arrays locales también
+        if (this.pacienteActual && this.pacienteActual.id === paciente.id) {
+          this.pacienteActual.signosVitales = signosNuevos;
+        }
+      }
+    },
     async cambiarPaciente() {
       if (!this.pacienteSeleccionado) {
         this.pacienteActual = null;
@@ -249,6 +356,8 @@ export default {
       try {
         const paciente = this.listaPacientes.find(p => p.id === this.pacienteSeleccionado);
         if (paciente) {
+          // Borrar signos vitales viejos antes de asignar
+          await this.borrarSignosVitalesViejosPaciente(paciente);
           this.pacienteActual = paciente;
           
           // Cargar diagnósticos y medicaciones del paciente
@@ -264,6 +373,14 @@ export default {
             );
           } else {
             this.historial = [];
+          }
+          if (paciente.signosVitales && Array.isArray(paciente.signosVitales)) {
+            // Ordenar por fecha ascendente
+            this.pacienteActual.signosVitales = paciente.signosVitales.slice().sort((a, b) => {
+              return new Date(a.fechaHora) - new Date(b.fechaHora);
+            });
+          } else {
+            this.pacienteActual.signosVitales = [];
           }
         }
       } catch (e) {
@@ -397,6 +514,45 @@ export default {
       } catch (e) {
         console.error("Error al eliminar medicación:", e);
         alert("Error al eliminar la medicación");
+      }
+    },
+
+    async registrarSignosVitales() {
+      if (!this.pacienteActual) return;
+      this.signosExito = false;
+      this.signosError = false;
+      try {
+        const docRef = doc(db, "pacientes", this.pacienteActual.id);
+        const nuevoRegistro = { ...this.signos };
+        await updateDoc(docRef, {
+          signosVitales: arrayUnion(nuevoRegistro)
+        });
+        this.signosExito = true;
+        this.signosError = false;
+        // Notificar por email si está configurado
+        if (isEmailJSConfigured()) {
+          try {
+            await sendVitalSignsNotification(nuevoRegistro, this.pacienteActual);
+          } catch (e) {
+            console.error("Error al enviar notificación de signos vitales:", e);
+          }
+        }
+        // Limpiar formulario
+        this.signos = {
+          temperatura: '',
+          presion: '',
+          frecuenciaCardiaca: '',
+          frecuenciaRespiratoria: '',
+          saturacionOxigeno: '',
+          glucemia: '',
+          fechaHora: new Date().toISOString().slice(0,16)
+        };
+        setTimeout(() => { this.signosExito = false; }, 3000);
+      } catch (e) {
+        this.signosError = true;
+        this.signosExito = false;
+        setTimeout(() => { this.signosError = false; }, 3000);
+        console.error("Error al registrar signos vitales:", e);
       }
     },
 
@@ -719,6 +875,51 @@ th {
   background: #ccc;
   cursor: not-allowed;
   color: #666;
+}
+
+.signos-vitales-form {
+  margin-top: 32px;
+  margin-bottom: 32px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 24px 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+.signos-vitales-form h2 {
+  margin-bottom: 18px;
+}
+.form-row {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12px;
+}
+.form-row label {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.btn-registrar-signos {
+  background: #007bff;
+  color: #fff;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: background 0.2s;
+}
+.btn-registrar-signos:hover {
+  background: #0056b3;
+}
+.exito {
+  color: #388e3c;
+  margin-left: 10px;
+  font-weight: 600;
+}
+.error {
+  color: #d32f2f;
+  margin-left: 10px;
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {
