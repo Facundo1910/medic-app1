@@ -177,8 +177,8 @@ import PacienteCard from "@/components/commons/PacienteCard.vue";
 import DiagnosticoSelector from "@/components/commons/DiagnosticoSelector.vue";
 import MedicacionForm from "@/components/commons/MedicacionForm.vue";
 import { sendMedicationNotification, isEmailJSConfigured, sendVitalSignsNotification } from "@/services/emailService";
-import SignosVitalesCharts from './commons/SignosVitalesCharts.vue';
-import { generarPDFSignosYMedicaciones } from '@/utils/helpers';
+import SignosVitalesCharts from "@/components/commons/SignosVitalesCharts.vue";
+import { generarPDFSignosYMedicaciones } from '../utils/helpers';
 import { sendPatientReportWithAttachment } from '@/services/emailService';
 
 export default {
