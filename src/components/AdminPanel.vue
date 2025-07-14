@@ -126,6 +126,7 @@
       <section class="tabla-pacientes card">
         <h2>📋 Reportes de Pacientes</h2>
         <input v-model="busquedaPaciente" placeholder="Buscar paciente por nombre, apellido o email..." class="input-busqueda-paciente" />
+        <!-- Tabla solo en desktop -->
         <table class="tabla-pacientes-table">
           <thead>
             <tr>
@@ -155,7 +156,31 @@
             </tr>
           </tbody>
         </table>
+        <!-- Cards solo en mobile -->
+        <div class="paciente-card-mobile" v-for="pac in pacientesFiltrados" :key="pac.id">
+          <div><strong>Nombre:</strong> {{ pac.nombre }} {{ pac.apellido }}</div>
+          <div><strong>Email:</strong> {{ pac.email }}</div>
+          <div><strong>Enfermera(s):</strong>
+            <span v-if="pac.enfermeras && pac.enfermeras.length">
+              <span v-for="(enf, idx) in pac.enfermeras" :key="enf.id">
+                {{ enf.nombre }}<span v-if="idx < pac.enfermeras.length - 1">, </span>
+              </span>
+            </span>
+            <span v-else>Sin enfermera asignada</span>
+          </div>
+          <button @click="descargarReportePaciente(pac)" class="btn-reporte-paciente" style="margin-top:8px;">
+            <span class="icono-reporte">📄</span> Reporte
+          </button>
+        </div>
       </section>
+      <!-- Render oculto del gráfico para PDF -->
+      <div ref="graficoPDF" style="position: absolute; left: -9999px; top: 0;">
+        <SignosVitalesCharts
+          v-if="pacienteParaReporte && pacienteParaReporte.signosVitales && pacienteParaReporte.signosVitales.length"
+          :signosVitales="pacienteParaReporte.signosVitales"
+          :titulo="'Signos Vitales de ' + pacienteParaReporte.nombre"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -168,11 +193,13 @@ import { approveNurseAccount, rejectNurseAccount } from "@/services/nurseValidat
 import Multiselect from 'vue-multiselect';
 import 'vue-multiselect/dist/vue-multiselect.min.css';
 import { generarPDFSignosYMedicaciones } from '../utils/helpers';
+import SignosVitalesCharts from "@/components/commons/SignosVitalesCharts.vue";
 
 export default {
   name: "AdminPanel",
   components: {
-    Multiselect
+    Multiselect,
+    SignosVitalesCharts
   },
   data() {
     return {
@@ -194,6 +221,7 @@ export default {
       pacientesAsignadosTemp: [],
       asignacionGuardada: false,
       busquedaPaciente: '',
+      pacienteParaReporte: null,
     };
   },
   computed: {
@@ -416,25 +444,29 @@ export default {
       return `${p.nombre} ${p.apellido} (${p.dni})`;
     },
     async descargarReportePaciente(paciente) {
-      // Renderizar un gráfico temporal oculto si es necesario, o usar el canvas si está visible
-      // Por simplicidad, solo tabla de medicaciones si no hay gráfico visible
-      const chartCanvas = document.querySelector('.grafico-combinado canvas');
-      const pdfBlob = await generarPDFSignosYMedicaciones(
-        chartCanvas,
-        paciente.medicaciones || [],
-        paciente
-      );
-      // Descargar el PDF
-      const url = URL.createObjectURL(pdfBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `reporte_${paciente.nombre}_${paciente.apellido}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 100);
+      this.pacienteParaReporte = paciente;
+      await this.$nextTick();
+      setTimeout(async () => {
+        const graficoDiv = this.$refs.graficoPDF;
+        const chartCanvas = graficoDiv ? graficoDiv.querySelector('canvas') : null;
+        const pdfBlob = await generarPDFSignosYMedicaciones(
+          chartCanvas,
+          paciente.medicaciones || [],
+          paciente
+        );
+        // Descargar el PDF
+        const url = URL.createObjectURL(pdfBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `reporte_${paciente.nombre}_${paciente.apellido}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          this.pacienteParaReporte = null;
+        }, 100);
+      }, 800);
     },
   }
 };
@@ -722,38 +754,33 @@ export default {
   border-radius: 6px;
   font-size: 1em;
 }
+.tabla-pacientes.card {
+  overflow-x: auto;
+}
 .tabla-pacientes-table {
   width: 100%;
-  border-collapse: collapse;
-  margin-top: 8px;
+  min-width: 600px;
 }
-.tabla-pacientes-table th, .tabla-pacientes-table td {
-  padding: 10px 8px;
-  border: 1px solid #eee;
-  text-align: left;
+</style>
+
+<style>
+@media (max-width: 600px) {
+  .tabla-pacientes-table {
+    display: none !important;
+  }
+  .paciente-card-mobile {
+    display: block !important;
+    background: #fff;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    padding: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    font-size: 15px;
+  }
 }
-.btn-reporte-paciente {
-  background: #f4f4f4;
-  color: #333;
-  border: 1.5px solid #bbb;
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 0.98em;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s, border 0.2s;
-  box-shadow: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.btn-reporte-paciente:hover {
-  background: #e0e0e0;
-  color: #111;
-  border-color: #888;
-}
-.icono-reporte {
-  font-size: 1.1em;
-  margin-right: 2px;
+@media (min-width: 601px) {
+  .paciente-card-mobile {
+    display: none !important;
+  }
 }
 </style> 
