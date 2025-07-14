@@ -29,8 +29,12 @@
               <span>{{ paciente.dni }}</span>
             </div>
             <div class="info-item">
-              <label>Año de nacimiento:</label>
-              <span>{{ paciente.anioNacimiento }}</span>
+              <label>Fecha de nacimiento:</label>
+              <span>{{ paciente.fechaNacimiento ? paciente.fechaNacimiento : '-' }}</span>
+            </div>
+            <div class="info-item">
+              <label>Edad:</label>
+              <span>{{ calcularEdad(paciente.fechaNacimiento) }}</span>
             </div>
             <div class="info-item">
               <label>Email:</label>
@@ -119,31 +123,96 @@
           </div>
         </div>
       </section>
+
+      <!-- Signos Vitales -->
+      <section class="signos-vitales">
+        <div class="card">
+          <div class="descarga-pdf-row">
+            <button @click="descargarPDF" class="btn-descargar-pdf">
+              <span class="icono-descarga">📄</span> Descargar PDF
+            </button>
+          </div>
+          <SignosVitalesCharts :signosVitales="signosVitales" />
+        </div>
+      </section>
     </div>
   </div>
 </template>
   
 <script>
 import { db } from "@/firebase";
-import { collection, getDocs, query, where, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, query, where, onSnapshot, updateDoc } from "firebase/firestore";
+import SignosVitalesCharts from './commons/SignosVitalesCharts.vue';
+import { generarPDFSignosYMedicaciones } from '@/utils/helpers';
 
 export default {
   name: "HomePaciente",
+  components: { SignosVitalesCharts },
   data() {
     return {
       paciente: {
         nombre: "Cargando...",
         apellido: "",
         dni: "",
-        anioNacimiento: "",
+        fechaNacimiento: "",
         email: ""
       },
       historial: [],
       diagnosticos: [],
+      signosVitales: [],
       unsubscribe: null,
       grupoAbierto: {},
       paginas: {},
-      porPagina: 10
+      porPagina: 10,
+      vitalParams: [
+        {
+          key: 'temperatura',
+          title: 'Evolución de Temperatura',
+          label: 'Temperatura (°C)',
+          color: '#2196f3',
+          min: 34, max: 41,
+          icon: '🌡️',
+          data: (arr) => arr.map(s => s.temperatura)
+        },
+        {
+          key: 'frecuenciaCardiaca',
+          title: 'Evolución de Frecuencia Cardíaca',
+          label: 'Frecuencia cardíaca (lpm)',
+          color: '#e53935',
+          min: 40, max: 180,
+          icon: '❤️',
+          data: (arr) => arr.map(s => s.frecuenciaCardiaca)
+        },
+        {
+          key: 'frecuenciaRespiratoria',
+          title: 'Evolución de Frecuencia Respiratoria',
+          label: 'Frecuencia respiratoria (resps/min)',
+          color: '#43a047',
+          min: 5, max: 40,
+          icon: '🫁',
+          data: (arr) => arr.map(s => s.frecuenciaRespiratoria)
+        },
+        {
+          key: 'saturacionOxigeno',
+          title: 'Evolución de Saturación de Oxígeno',
+          label: 'Saturación de oxígeno (%)',
+          color: '#00bcd4',
+          min: 70, max: 100,
+          icon: '🩸',
+          data: (arr) => arr.map(s => s.saturacionOxigeno)
+        },
+        {
+          key: 'glucemia',
+          title: 'Evolución de Glucemia',
+          label: 'Glucemia (mg/dL)',
+          color: '#ff9800',
+          min: 40, max: 300,
+          icon: '🧃',
+          data: (arr) => arr.map(s => s.glucemia)
+        }
+      ],
+      graficoSeleccionado: 'todos', // 'todos' o el nombre de un parámetro vital
+      parametroSeleccionado: null
     };
   },
   computed: {
@@ -176,6 +245,50 @@ export default {
           return fechaB - fechaA;
         })
       );
+    },
+    labelsSignos() {
+      return this.signosVitales.map(s => this.formatearFecha(s.fechaHora));
+    },
+    opcionesGrafico() {
+      return [
+        { key: 'todos', title: 'Todos', icon: '📊' },
+        ...this.vitalParams.map(param => ({
+          key: param.key,
+          title: `${param.icon} ${param.title}`,
+          icon: param.icon
+        }))
+      ];
+    },
+    datasetsCombinados() {
+      if (this.graficoSeleccionado === 'todos') {
+        return this.vitalParams.map(param => ({
+          label: param.title,
+          backgroundColor: param.color + '22',
+          borderColor: param.color,
+          data: param.data(this.signosVitales),
+          fill: false,
+          pointBackgroundColor: param.color,
+          pointRadius: 4,
+          lineTension: 0.1
+        }));
+      } else {
+        const param = this.vitalParams.find(p => p.key === this.graficoSeleccionado);
+        if (param) {
+          return [
+            {
+              label: param.title,
+              backgroundColor: param.color + '22',
+              borderColor: param.color,
+              data: param.data(this.signosVitales),
+              fill: false,
+              pointBackgroundColor: param.color,
+              pointRadius: 4,
+              lineTension: 0.1
+            }
+          ];
+        }
+        return [];
+      }
     }
   },
   async mounted() {
@@ -221,8 +334,16 @@ export default {
                 (b.fechaHora || '').localeCompare(a.fechaHora || '')
               );
             }
+            // Actualizar signos vitales
+            if (data.signosVitales && Array.isArray(data.signosVitales)) {
+              this.signosVitales = data.signosVitales.slice().sort((a, b) => 
+                (a.fechaHora || '').localeCompare(b.fechaHora || '')
+              );
+            }
           }
         });
+        // Borrar signos vitales viejos después de cargar
+        await this.borrarSignosVitalesViejos();
       }
     } catch (e) {
       console.error("Error al cargar datos:", e);
@@ -233,6 +354,9 @@ export default {
       const hoy = new Date();
       const key = hoy.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
       this.$set(this.grupoAbierto, key, true);
+      
+      // Inicializar el parámetro seleccionado para el gráfico individual
+      this.parametroSeleccionado = this.vitalParams[0];
     });
   },
   beforeDestroy() {
@@ -246,7 +370,7 @@ export default {
       try {
         const fecha = new Date(fechaString);
         return fecha.toLocaleString('es-ES', {
-          year: 'numeric',
+          year: '2-digit',
           month: '2-digit',
           day: '2-digit',
           hour: '2-digit',
@@ -264,6 +388,17 @@ export default {
     mesANumero(mes) {
       const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
       return (meses.indexOf(mes.toLowerCase()) + 1).toString().padStart(2, '0');
+    },
+    calcularEdad(fecha) {
+      if (!fecha) return '-';
+      const hoy = new Date();
+      const nacimiento = new Date(fecha);
+      let edad = hoy.getFullYear() - nacimiento.getFullYear();
+      const m = hoy.getMonth() - nacimiento.getMonth();
+      if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
+        edad--;
+      }
+      return edad;
     },
     toggleGrupo(key) {
       this.$set(this.grupoAbierto, key, !this.grupoAbierto[key]);
@@ -284,6 +419,60 @@ export default {
       if (nueva >= 1 && nueva <= this.totalPaginas(key)) {
         this.$set(this.paginas, key, nueva);
       }
+    },
+    seleccionarGrafico(key) {
+      this.graficoSeleccionado = key;
+      if (key !== 'todos') {
+        this.parametroSeleccionado = this.vitalParams.find(p => p.key === key);
+      } else {
+        this.parametroSeleccionado = null;
+      }
+    },
+    async borrarSignosVitalesViejos() {
+      if (!this.paciente || !this.paciente.id) return;
+      const ahora = new Date();
+      const tresDiasMs = 3 * 24 * 60 * 60 * 1000;
+      let signosNuevos = [];
+      let huboCambios = false;
+      if (Array.isArray(this.signosVitales)) {
+        signosNuevos = this.signosVitales.filter(sv => {
+          const fecha = new Date(sv.fechaHora);
+          return ahora - fecha <= tresDiasMs;
+        });
+        if (signosNuevos.length !== this.signosVitales.length) huboCambios = true;
+      }
+      if (huboCambios) {
+        const q = query(collection(db, "pacientes"), where("nombre", "==", this.paciente.nombre));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const docRef = querySnapshot.docs[0].ref;
+          await updateDoc(docRef, {
+            signosVitales: signosNuevos
+          });
+          this.signosVitales = signosNuevos;
+        }
+      }
+    },
+    async descargarPDF() {
+      // Buscar el canvas del gráfico combinado
+      await this.$nextTick();
+      const chartCanvas = document.querySelector('.grafico-combinado canvas');
+      const pdfBlob = await generarPDFSignosYMedicaciones(
+        chartCanvas,
+        this.historial || [],
+        this.paciente
+      );
+      // Descargar el PDF
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'reporte_medicapp.pdf';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
     }
   }
 };
@@ -322,6 +511,9 @@ export default {
 .contenedor-central .card {
   margin-top: 32px !important;
   margin-bottom: 32px !important;
+  width: 100%;
+  box-sizing: border-box;
+  /* Centrar el contenido dentro de la tarjeta si es necesario */
 }
 .contenedor-central .card:first-child {
   margin-top: 0 !important;
@@ -336,8 +528,10 @@ export default {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
   padding: 20px;
   margin: 0;
-  margin-top: 24px !important;
-  margin-bottom: 24px !important;
+  margin-top: 32px !important;
+  margin-bottom: 32px !important;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .header {
@@ -539,6 +733,110 @@ h2 {
   color: #666;
 }
 
+.signos-vitales {
+  margin-top: 32px;
+  margin-bottom: 32px;
+}
+/* Ajuste especial para la tarjeta de signos vitales */
+.signos-vitales .card {
+  padding-left: 0;
+  padding-right: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Estilos para la cabecera de signos vitales y los botones a la derecha */
+.signos-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.grafico-selector {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-grafico {
+  background: #e0e0e0;
+  color: #333;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.3s, color 0.3s;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btn-grafico:hover:not(.activo) {
+  background: #d0d0d0;
+}
+
+.btn-grafico.activo {
+  background: #007bff;
+  color: white;
+}
+
+.grafico-individual,
+.grafico-combinado {
+  width: 100%;
+  height: 380px;
+  margin: 0 0 65px 0;
+  padding-right: 52px;
+  padding-bottom: 65px;
+  box-sizing: border-box;
+  display: block;
+  position: relative;
+}
+
+.grafico-individual canvas,
+.grafico-combinado canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  background: white;
+  border-radius: 0 0 10px 10px;
+}
+
+.descarga-pdf-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+  margin-right: 18px;
+}
+.btn-descargar-pdf {
+  background: #f4f4f4;
+  color: #333;
+  border: 1.5px solid #bbb;
+  padding: 7px 18px;
+  border-radius: 6px;
+  font-size: 1em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border 0.2s;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.btn-descargar-pdf:hover {
+  background: #e0e0e0;
+  color: #111;
+  border-color: #888;
+}
+.icono-descarga {
+  font-size: 1.2em;
+  margin-right: 2px;
+}
+
 @media (max-width: 768px) {
   .header {
     flex-direction: column;
@@ -560,6 +858,25 @@ h2 {
   
   th, td {
     padding: 8px;
+  }
+  
+  .grafico-selector {
+    flex-direction: column;
+  }
+  
+  .btn-grafico {
+    justify-content: center;
+    font-size: 14px;
+  }
+
+  .signos-header {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+  }
+  .grafico-selector {
+    justify-content: center;
   }
 }
 </style> 

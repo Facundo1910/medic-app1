@@ -90,17 +90,90 @@
           </div>
         </div>
       </section>
+
+      <section class="asignacion-pacientes">
+        <div class="card">
+          <h2>👩‍⚕️ Asignar Pacientes a Enfermeras</h2>
+          <div v-if="cargandoAsignacion">Cargando enfermeras y pacientes...</div>
+          <div v-else>
+            <label for="enfermeraSelect">Selecciona una enfermera:</label>
+            <select v-model="enfermeraSeleccionadaId" id="enfermeraSelect">
+              <option value="">-- Selecciona --</option>
+              <option v-for="enf in enfermeras" :key="enf.id" :value="enf.id">{{ enf.nombre }} ({{ enf.email }})</option>
+            </select>
+            <div v-if="enfermeraSeleccionada">
+              <h3>Pacientes asignados:</h3>
+              <multiselect
+                v-model="pacientesAsignadosTemp"
+                :options="pacientes"
+                :multiple="true"
+                :close-on-select="false"
+                :clear-on-select="false"
+                :preserve-search="true"
+                :searchable="true"
+                :custom-label="customLabelPaciente"
+                placeholder="Buscar y seleccionar pacientes..."
+                label="nombre"
+                track-by="id"
+                :max-height="250"
+              />
+              <button @click="guardarAsignacion" class="btn-guardar-asignacion">Guardar asignación</button>
+              <span v-if="asignacionGuardada" class="asignacion-ok">¡Asignación guardada!</span>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="tabla-pacientes card">
+        <h2>📋 Reportes de Pacientes</h2>
+        <input v-model="busquedaPaciente" placeholder="Buscar paciente por nombre, apellido o email..." class="input-busqueda-paciente" />
+        <table class="tabla-pacientes-table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Email</th>
+              <th>Enfermera(s) asignada(s)</th>
+              <th>Reporte</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="pac in pacientesFiltrados" :key="pac.id">
+              <td>{{ pac.nombre }} {{ pac.apellido }}</td>
+              <td>{{ pac.email }}</td>
+              <td>
+                <span v-if="pac.enfermeras && pac.enfermeras.length">
+                  <span v-for="(enf, idx) in pac.enfermeras" :key="enf.id">
+                    {{ enf.nombre }}<span v-if="idx < pac.enfermeras.length - 1">, </span>
+                  </span>
+                </span>
+                <span v-else style="color:#888;">Sin enfermera asignada</span>
+              </td>
+              <td>
+                <button @click="descargarReportePaciente(pac)" class="btn-reporte-paciente">
+                  <span class="icono-reporte">📄</span> Reporte
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
     </div>
   </div>
 </template>
 
 <script>
 import { db } from "@/firebase";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, doc, updateDoc } from "firebase/firestore";
 import { approveNurseAccount, rejectNurseAccount } from "@/services/nurseValidationService";
+// Importar vue-multiselect
+import Multiselect from 'vue-multiselect';
+import 'vue-multiselect/dist/vue-multiselect.min.css';
+import { generarPDFSignosYMedicaciones } from '@/utils/helpers';
 
 export default {
   name: "AdminPanel",
+  components: {
+    Multiselect
+  },
   data() {
     return {
       admin: {
@@ -109,8 +182,42 @@ export default {
       solicitudes: [],
       cargando: true,
       mensajes: {},
-      procesando: {}
+      procesando: {},
+      enfermeras: [],
+      pacientes: [
+        { id: '1', nombre: 'Juan', apellido: 'Pérez', dni: '123' },
+        { id: '2', nombre: 'Ana', apellido: 'García', dni: '456' },
+        { id: '3', nombre: 'Carlos', apellido: 'López', dni: '789' }
+      ],
+      cargandoAsignacion: true,
+      enfermeraSeleccionadaId: "",
+      pacientesAsignadosTemp: [],
+      asignacionGuardada: false,
+      busquedaPaciente: '',
     };
+  },
+  computed: {
+    enfermeraSeleccionada() {
+      return this.enfermeras.find(e => e.id === this.enfermeraSeleccionadaId) || null;
+    },
+    pacientesFiltrados() {
+      if (!this.pacientes || !this.busquedaPaciente) return this.pacientes;
+      const q = this.busquedaPaciente.toLowerCase();
+      return this.pacientes.filter(pac =>
+        (pac.nombre && pac.nombre.toLowerCase().includes(q)) ||
+        (pac.apellido && pac.apellido.toLowerCase().includes(q)) ||
+        (pac.email && pac.email.toLowerCase().includes(q))
+      );
+    }
+  },
+  watch: {
+    enfermeraSeleccionadaId(newId) {
+      const enf = this.enfermeras.find(e => e.id === newId);
+      this.pacientesAsignadosTemp = enf && enf.pacientesAsignados
+        ? this.pacientes.filter(p => enf.pacientesAsignados.includes(p.id))
+        : [];
+      this.asignacionGuardada = false;
+    }
   },
   async mounted() {
     try {
@@ -133,6 +240,7 @@ export default {
       }
 
       await this.cargarSolicitudes();
+      await this.cargarEnfermerasYPacientes();
     } catch (e) {
       console.error("Error al cargar datos:", e);
       alert("Error al cargar los datos");
@@ -236,7 +344,98 @@ export default {
     logout() {
       localStorage.removeItem('usuario');
       this.$router.push('/');
-    }
+    },
+
+    async cargarEnfermerasYPacientes() {
+      this.cargandoAsignacion = true;
+      try {
+        const enfermerasSnap = await getDocs(collection(db, "enfermeras"));
+        this.enfermeras = enfermerasSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const pacientesSnap = await getDocs(collection(db, "pacientes"));
+        this.pacientes = pacientesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      } catch (e) {
+        alert("Error al cargar enfermeras o pacientes");
+      } finally {
+        this.cargandoAsignacion = false;
+      }
+    },
+    async guardarAsignacion() {
+      if (!this.enfermeraSeleccionadaId) return;
+      try {
+        // Actualizar la enfermera con los pacientes asignados
+        const enfRef = doc(db, 'enfermeras', this.enfermeraSeleccionadaId);
+        const pacientesIds = this.pacientesAsignadosTemp.map(p => p.id);
+        await updateDoc(enfRef, { pacientesAsignados: pacientesIds });
+
+        // Obtener pacientes que estaban previamente asignados a la enfermera
+        const enfermeraObj = this.enfermeras.find(e => e.id === this.enfermeraSeleccionadaId);
+        const pacientesAntes = Array.isArray(enfermeraObj.pacientesAsignados) ? enfermeraObj.pacientesAsignados : [];
+        const pacientesAhora = pacientesIds;
+
+        // Pacientes que fueron desasignados (estaban antes y ya no están)
+        const pacientesDesasignados = pacientesAntes.filter(id => !pacientesAhora.includes(id));
+        // Pacientes que siguen o se asignaron (para actualizar/crear array de enfermeras)
+        const pacientesAsignados = this.pacientesAsignadosTemp;
+
+        // Desasignar enfermera de los pacientes que fueron quitados
+        for (const pacienteId of pacientesDesasignados) {
+          const pacRef = doc(db, 'pacientes', pacienteId);
+          // Obtener el paciente actual de this.pacientes
+          const paciente = this.pacientes.find(p => p.id === pacienteId);
+          let nuevasEnfermeras = Array.isArray(paciente?.enfermeras) ? paciente.enfermeras.filter(e => e.id !== this.enfermeraSeleccionadaId) : [];
+          await updateDoc(pacRef, { enfermeras: nuevasEnfermeras });
+        }
+
+        // Asignar enfermera a los pacientes seleccionados
+        for (const paciente of pacientesAsignados) {
+          const pacRef = doc(db, 'pacientes', paciente.id);
+          // Buscar el objeto enfermera
+          // Si el paciente ya tiene un array de enfermeras, agrego si no está, si no, lo creo
+          let nuevasEnfermeras = Array.isArray(paciente.enfermeras) ? paciente.enfermeras.slice() : [];
+          // Evitar duplicados
+          if (!nuevasEnfermeras.some(e => e.id === enfermeraObj.id)) {
+            nuevasEnfermeras.push({ id: enfermeraObj.id, nombre: enfermeraObj.nombre });
+          }
+          await updateDoc(pacRef, { enfermeras: nuevasEnfermeras });
+        }
+        this.asignacionGuardada = true;
+        // Refrescar la tabla de pacientes automáticamente
+        await this.cargarEnfermerasYPacientes();
+      } catch (e) {
+        alert('Error al guardar la asignación');
+      }
+    },
+    nombrePaciente(pid) {
+      const pac = this.pacientes.find(p => p.id === pid);
+      return pac ? `${pac.nombre} ${pac.apellido}` : pid;
+    },
+    esUltimoPaciente(arr, pid) {
+      return arr.indexOf(pid) === arr.length - 1;
+    },
+    customLabelPaciente(p) {
+      return `${p.nombre} ${p.apellido} (${p.dni})`;
+    },
+    async descargarReportePaciente(paciente) {
+      // Renderizar un gráfico temporal oculto si es necesario, o usar el canvas si está visible
+      // Por simplicidad, solo tabla de medicaciones si no hay gráfico visible
+      const chartCanvas = document.querySelector('.grafico-combinado canvas');
+      const pdfBlob = await generarPDFSignosYMedicaciones(
+        chartCanvas,
+        paciente.medicaciones || [],
+        paciente
+      );
+      // Descargar el PDF
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `reporte_${paciente.nombre}_${paciente.apellido}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+    },
   }
 };
 </script>
@@ -455,5 +654,106 @@ export default {
   font-style: italic;
   margin: 5px 0 0 0;
   font-size: 14px;
+}
+
+.asignacion-pacientes .card {
+  margin-top: 32px;
+  padding: 24px 18px;
+}
+.pacientes-lista {
+  display: none;
+}
+.pacientes-multiselect {
+  width: 100%;
+  min-width: 220px;
+  max-width: 400px;
+  margin: 12px 0 18px 0;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #b3c6e0;
+  font-size: 15px;
+  background: #f6f8fc;
+  box-shadow: 0 2px 8px rgba(30,136,229,0.07);
+}
+.btn-guardar-asignacion {
+  background: #1e88e5;
+  color: white;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: background 0.2s;
+}
+.btn-guardar-asignacion:hover {
+  background: #1565c0;
+}
+.asignacion-ok {
+  color: #28a745;
+  margin-left: 16px;
+  font-weight: bold;
+}
+.resumen-asignaciones .card {
+  margin-top: 32px;
+  padding: 24px 18px;
+}
+.tabla-asignaciones {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+}
+.tabla-asignaciones th, .tabla-asignaciones td {
+  border: 1px solid #e0e0e0;
+  padding: 8px 12px;
+  text-align: left;
+}
+.tabla-asignaciones th {
+  background: #f6f8fc;
+  font-weight: bold;
+}
+.input-busqueda-paciente {
+  width: 100%;
+  max-width: 350px;
+  margin-bottom: 14px;
+  padding: 7px 12px;
+  border: 1.5px solid #bbb;
+  border-radius: 6px;
+  font-size: 1em;
+}
+.tabla-pacientes-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+.tabla-pacientes-table th, .tabla-pacientes-table td {
+  padding: 10px 8px;
+  border: 1px solid #eee;
+  text-align: left;
+}
+.btn-reporte-paciente {
+  background: #f4f4f4;
+  color: #333;
+  border: 1.5px solid #bbb;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.98em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border 0.2s;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-reporte-paciente:hover {
+  background: #e0e0e0;
+  color: #111;
+  border-color: #888;
+}
+.icono-reporte {
+  font-size: 1.1em;
+  margin-right: 2px;
 }
 </style> 
