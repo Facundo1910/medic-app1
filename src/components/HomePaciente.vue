@@ -40,6 +40,7 @@
               <label>Email:</label>
               <span>{{ paciente.email }}</span>
             </div>
+
           </div>
         </div>
       </section>
@@ -162,6 +163,8 @@
         </div>
       </section>
     </div>
+    
+
   </div>
 </template>
   
@@ -240,7 +243,8 @@ export default {
         }
       ],
       graficoSeleccionado: 'todos', // 'todos' o el nombre de un parámetro vital
-      parametroSeleccionado: null
+      parametroSeleccionado: null,
+      medicamentoPendiente: null
     };
   },
   computed: {
@@ -317,7 +321,8 @@ export default {
         }
         return [];
       }
-    }
+    },
+
   },
   async mounted() {
     try {
@@ -560,22 +565,41 @@ export default {
       doc.text(`Correo: ${this.paciente.email || ''}`, 12, y + 35);
       doc.save('receta_medica.pdf');
     },
-    async descargarRecetaIndividualPDF(medicamento) {
+    async     descargarRecetaIndividualPDF(medicamento) {
+      // Verificar si hay firma del médico guardada
+      const firmaMedico = window.localStorage.getItem('medicoFirma');
+      
+      if (!firmaMedico) {
+        alert('El médico aún no ha configurado su firma digital. Contacta al administrador.');
+        return;
+      }
+      
+      // Si hay firma, generar PDF directamente
+      this.generarPDFConFirma(medicamento, firmaMedico);
+    },
+    
+
+    
+    generarPDFConFirma(medicamento, firmaDataURL) {
       const doc = new jsPDF();
-      // Logo de Brionia (ruta correcta)
+      
+      // Logo de Brionia
       const logoUrl = require('@/assets/a1e7f095-a7c5-4529-a80f-9befabda94a3.png');
       const img = new window.Image();
       img.src = logoUrl;
+      
       img.onload = () => {
         doc.addImage(img, 'PNG', 10, 8, 25, 25);
-        this._generarRecetaIndividualPDF(doc, medicamento);
+        this._generarRecetaIndividualPDFConFirma(doc, medicamento, firmaDataURL);
       };
+      
       img.onerror = () => {
-        // Si falla el logo, igual genera el PDF
-        this._generarRecetaIndividualPDF(doc, medicamento);
+        this._generarRecetaIndividualPDFConFirma(doc, medicamento, firmaDataURL);
       };
     },
-    _generarRecetaIndividualPDF(doc, medicamento) {
+    
+    _generarRecetaIndividualPDFConFirma(doc, medicamento, firmaDataURL) {
+      // Título y datos del médico
       doc.setFontSize(13);
       doc.text('Médico especialista en Medicina Interna', 40, 15);
       doc.setFontSize(11);
@@ -583,19 +607,55 @@ export default {
       doc.text('CMP: 0000   RNE: 0000', 40, 28);
       doc.setLineWidth(0.5);
       doc.line(10, 35, 200, 35);
+      
+      // Datos del paciente
       doc.setFontSize(11);
       doc.text(`NOMBRE: ${this.paciente.nombre || ''} ${this.paciente.apellido || ''}`, 12, 43);
       doc.text(`N° DNI: ${this.paciente.dni || ''}`, 12, 50);
       doc.text(`EDAD: ${this.calcularEdad(this.paciente.fechaNacimiento)}`, 80, 50);
-      doc.text(`DIAGNÓSTICO: ${this.diagnosticos.join(', ')}`, 12, 57);
+      
+      // Diagnósticos
+      if (this.diagnosticos && this.diagnosticos.length > 0) {
+        doc.text(`DIAGNÓSTICO: ${this.diagnosticos.join(', ')}`, 12, 57);
+      } else {
+        doc.text('DIAGNÓSTICO:', 12, 57);
+      }
+      
       doc.text('Rp./', 12, 65);
+      
+      // Medicamento
       doc.text(`${medicamento.nombre || ''} ${medicamento.dosisRecomendada ? '- ' + medicamento.dosisRecomendada + ' mg' : ''} ${medicamento.frecuencia ? '- ' + medicamento.frecuencia : ''} ${medicamento.instrucciones ? '- ' + medicamento.instrucciones : ''}`, 16, 73);
-      doc.text(`FECHA: ${new Date().toLocaleDateString()}`, 12, 81);
-      doc.text('FIRMA Y SELLO', 150, 95);
+      
+      // Fecha
+      const hoy = new Date();
+      doc.text(`FECHA: ${hoy.toLocaleDateString()}`, 12, 81);
+      
+      // Firma digital
+      if (firmaDataURL) {
+        try {
+          doc.addImage(firmaDataURL, 'PNG', 150, 85, 40, 20);
+          doc.text('FIRMA DIGITAL', 150, 110);
+        } catch (error) {
+          console.error('Error al agregar firma:', error);
+          doc.text('FIRMA Y SELLO', 150, 95);
+        }
+      } else {
+        doc.text('FIRMA Y SELLO', 150, 95);
+      }
+      
+      // Contacto
+      doc.setFontSize(10);
       doc.text(`Contacto al teléfono: ---`, 12, 100);
       doc.text(`Correo: ${this.paciente.email || ''}`, 12, 105);
+      
+      // Timestamp de firma
+      doc.setFontSize(8);
+      doc.text(`Documento firmado digitalmente el: ${hoy.toLocaleString()}`, 12, 115);
+      
       doc.save(`receta_individual_${medicamento.nombre || 'medicamento'}.pdf`);
-    }
+    },
+    
+
   }
 };
 </script>
@@ -1019,6 +1079,42 @@ h2 {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.firma-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.firma-existe {
+  color: #43a047; /* Verde para indicar que la firma existe */
+  font-weight: bold;
+}
+
+.firma-no-existe {
+  color: #dc3545; /* Rojo para indicar que la firma no existe */
+  font-weight: bold;
+}
+
+.btn-cambiar-firma {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.3s;
+  font-size: 14px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btn-cambiar-firma:hover {
+  background: #0056b3;
 }
 
 @media (max-width: 768px) {

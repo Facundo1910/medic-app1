@@ -434,6 +434,54 @@
       </div>
     </div>
 
+    <!-- Sección Configuración -->
+    <section v-if="seccionActiva === 'configuracion'">
+      <div class="card">
+        <h2>⚙️ Configuración del Médico</h2>
+        
+        <!-- Configuración de Firma Digital -->
+        <div class="configuracion-firma">
+          <h3>🖊️ Firma Digital</h3>
+          <p>Configura tu firma digital para validar las recetas médicas.</p>
+          
+          <div class="firma-status">
+            <div class="firma-info">
+              <span v-if="firmaGuardada || tieneFirmaMedico" class="firma-existe">
+                ✅ Firma configurada
+              </span>
+              <span v-else class="firma-no-existe">
+                ❌ Sin firma configurada
+              </span>
+            </div>
+            
+            <div class="firma-actions">
+              <button @click="abrirModalFirma" class="btn-configurar-firma">
+                {{ (firmaGuardada || tieneFirmaMedico) ? '✏️ Cambiar Firma' : '🖊️ Configurar Firma' }}
+              </button>
+              
+              <button v-if="firmaGuardada || tieneFirmaMedico" @click="eliminarFirma" class="btn-eliminar-firma">
+                🗑️ Eliminar Firma
+              </button>
+            </div>
+          </div>
+          
+          <div v-if="firmaGuardada || tieneFirmaMedico" class="firma-preview">
+            <h4>Vista previa de la firma:</h4>
+            <div class="firma-preview-container">
+              <img :src="firmaGuardada || window.localStorage.getItem('medicoFirma')" alt="Firma del médico" class="firma-preview-img" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Modal de firma digital -->
+    <SignatureCanvas 
+      :mostrar="mostrarModalFirma"
+      @cerrar="cerrarModalFirma"
+      @firma-guardada="onFirmaGuardada"
+    />
+
     <!-- Render oculto del gráfico para PDF -->
     <div ref="graficoPDF" style="position: absolute; left: -9999px; top: 0;">
       <SignosVitalesCharts
@@ -456,13 +504,15 @@ import 'vue-multiselect/dist/vue-multiselect.min.css';
 import { generarPDFSignosYMedicaciones } from '../utils/helpers';
 import SignosVitalesCharts from "@/components/commons/SignosVitalesCharts.vue";
 import DiagnosticoSelector from './commons/DiagnosticoSelector.vue';
+import SignatureCanvas from './commons/SignatureCanvas.vue';
 
 export default {
   name: "AdminPanel",
   components: {
     Multiselect,
     SignosVitalesCharts,
-    DiagnosticoSelector
+    DiagnosticoSelector,
+    SignatureCanvas
   },
   data() {
     return {
@@ -503,7 +553,8 @@ export default {
       seccionActiva: 'pacientes',
       tabs: [
         { id: 'pacientes', label: 'Pacientes' },
-        { id: 'enfermeras', label: 'Enfermeras' }
+        { id: 'enfermeras', label: 'Enfermeras' },
+        { id: 'configuracion', label: 'Configuración' }
       ],
       nuevoDiagnostico: [],
       diagnosticoError: false,
@@ -512,6 +563,9 @@ export default {
       mostrarModalRecetas: false,
       pacienteSeleccionado: null,
       recetasPorFecha: [],
+      // Variables para firma digital
+      mostrarModalFirma: false,
+      firmaGuardada: null,
     };
   },
   computed: {
@@ -524,6 +578,9 @@ export default {
         pac.apellido.toLowerCase().includes(q) ||
         (pac.email && pac.email.toLowerCase().includes(q))
       );
+    },
+    tieneFirmaMedico() {
+      return !!window.localStorage.getItem('medicoFirma');
     }
   },
   watch: {
@@ -844,16 +901,6 @@ export default {
           return;
         }
 
-        // Verificar si ya existe un medicamento con el mismo nombre
-        const existe = this.medicamentos.some(m => 
-          m.nombre.toLowerCase() === this.nuevoMedicamento.nombre.toLowerCase()
-        );
-        
-        if (existe) {
-          alert("Ya existe un medicamento con ese nombre");
-          return;
-        }
-
         // Agregar el medicamento a Firestore
         const medicamentoData = {
           nombre: this.nuevoMedicamento.nombre.trim(),
@@ -1071,6 +1118,27 @@ export default {
         hour: '2-digit',
         minute: '2-digit'
       });
+    },
+    
+    // Métodos para firma digital
+    abrirModalFirma() {
+      this.mostrarModalFirma = true;
+    },
+    
+    cerrarModalFirma() {
+      this.mostrarModalFirma = false;
+    },
+    
+    onFirmaGuardada(firmaDataURL) {
+      this.firmaGuardada = firmaDataURL;
+      this.mostrarModalFirma = false;
+    },
+    
+    eliminarFirma() {
+      if (confirm('¿Estás seguro de que quieres eliminar tu firma digital?')) {
+        this.firmaGuardada = null;
+        window.localStorage.removeItem('medicoFirma');
+      }
     }
   }
 };
@@ -2171,6 +2239,140 @@ export default {
   .receta-modal-info {
     flex-direction: column;
     gap: 4px;
+  }
+}
+
+/* Estilos para configuración de firma digital */
+.configuracion-firma {
+  margin-top: 20px;
+}
+
+.configuracion-firma h3 {
+  color: #333;
+  margin-bottom: 10px;
+  font-size: 18px;
+}
+
+.configuracion-firma p {
+  color: #666;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.firma-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  margin-bottom: 20px;
+}
+
+.firma-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.firma-existe {
+  color: #27ae60;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.firma-no-existe {
+  color: #e74c3c;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.firma-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-configurar-firma {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+
+.btn-configurar-firma:hover {
+  background: #0056b3;
+}
+
+.btn-eliminar-firma {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+
+.btn-eliminar-firma:hover {
+  background: #c82333;
+}
+
+.firma-preview {
+  margin-top: 20px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.firma-preview h4 {
+  margin: 0 0 15px 0;
+  color: #333;
+  font-size: 16px;
+}
+
+.firma-preview-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 20px;
+}
+
+.firma-preview-img {
+  max-width: 200px;
+  max-height: 80px;
+  object-fit: contain;
+}
+
+/* Responsive para configuración de firma */
+@media (max-width: 768px) {
+  .firma-status {
+    flex-direction: column;
+    gap: 15px;
+    align-items: stretch;
+  }
+  
+  .firma-actions {
+    flex-direction: column;
+  }
+  
+  .firma-preview-container {
+    min-height: 80px;
+  }
+  
+  .firma-preview-img {
+    max-width: 150px;
+    max-height: 60px;
   }
 }
 </style>
