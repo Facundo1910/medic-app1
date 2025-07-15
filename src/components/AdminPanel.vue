@@ -1897,6 +1897,63 @@ export default {
 .tabla-pacientes-table tr:hover {
   background: #f5faff;
 }
+
+/* Estilos para tabla de enfermeras */
+.tabla-enfermeras.card {
+  overflow-x: auto;
+}
+
+.tabla-enfermeras-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e0e0e0;
+}
+
+.tabla-enfermeras-table th, 
+.tabla-enfermeras-table td {
+  border: 1px solid #e0e0e0;
+  padding: 14px 12px;
+  text-align: left;
+  vertical-align: middle;
+  background: #fff;
+}
+
+.tabla-enfermeras-table th {
+  background: #f7f9fa;
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tabla-enfermeras-table tr:not(:last-child) td {
+  border-bottom: 1.5px solid #e0e0e0;
+}
+
+.tabla-enfermeras-table td:not(:last-child),
+.tabla-enfermeras-table th:not(:last-child) {
+  border-right: 1.5px solid #e0e0e0;
+}
+
+.tabla-enfermeras-table tr {
+  transition: background 0.2s;
+}
+
+.tabla-enfermeras-table tr:hover {
+  background: #f5faff;
+}
+
+.tabla-enfermeras-table td {
+  color: #333;
+  font-size: 14px;
+}
+
 .recetas-scroll-col {
   display: flex;
   flex-direction: column;
@@ -2954,6 +3011,27 @@ export default {
 @media (min-width: 601px) {
   .paciente-card-mobile {
     display: none !important;
+  }
+}
+
+/* Responsive para tabla de enfermeras */
+@media (max-width: 768px) {
+  .tabla-enfermeras-table {
+    font-size: 12px;
+  }
+  
+  .tabla-enfermeras-table th, 
+  .tabla-enfermeras-table td {
+    padding: 8px 6px;
+  }
+  
+  .tabla-enfermeras-table th {
+    font-size: 12px;
+    letter-spacing: 0.3px;
+  }
+  
+  .tabla-enfermeras-table td {
+    font-size: 12px;
   }
 }
 </style> 
