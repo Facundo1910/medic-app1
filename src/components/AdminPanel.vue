@@ -367,6 +367,100 @@
         </section>
       </section>
 
+      <!-- Sección Solicitudes de DNI -->
+      <section v-if="seccionActiva === 'solicitudesDNI'">
+        <div class="card">
+          <h2>📝 Solicitudes de Cambio de DNI</h2>
+          
+          <div v-if="cargandoSolicitudesDNI" class="cargando">
+            <p>Cargando solicitudes...</p>
+          </div>
+          
+          <div v-else-if="solicitudesDNI.length === 0" class="no-solicitudes">
+            <p>No hay solicitudes de cambio de DNI pendientes</p>
+          </div>
+          
+          <div v-else class="solicitudes-dni-lista">
+            <div v-for="solicitud in solicitudesDNI" :key="solicitud.id" class="solicitud-dni-item">
+              <div class="solicitud-dni-info">
+                <h3>{{ solicitud.nombre }} {{ solicitud.apellido }}</h3>
+                <div class="info-grid">
+                  <div class="info-item">
+                    <label>Rol:</label>
+                    <span>{{ solicitud.rol }}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Email:</label>
+                    <span>{{ solicitud.email }}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>DNI Actual:</label>
+                    <span>{{ solicitud.dniActual }}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Nuevo DNI:</label>
+                    <span>{{ solicitud.nuevoDNI }}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Fecha de solicitud:</label>
+                    <span>{{ formatearFecha(solicitud.fechaSolicitud) }}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>Estado:</label>
+                    <span :class="getEstadoClass(solicitud.estado)">{{ solicitud.estado }}</span>
+                  </div>
+                </div>
+                
+                <div class="motivo-solicitud">
+                  <label>Motivo del cambio:</label>
+                  <p>{{ solicitud.motivo }}</p>
+                </div>
+              </div>
+              
+              <div v-if="solicitud.estado === 'pendiente'" class="acciones-dni">
+                <div class="accion-grupo">
+                  <label for="mensaje-dni">Mensaje (opcional):</label>
+                  <textarea 
+                    v-model="mensajesDNI[solicitud.id]" 
+                    id="mensaje-dni"
+                    placeholder="Mensaje personalizado para el usuario..."
+                    rows="2"
+                  ></textarea>
+                </div>
+                
+                <div class="botones-accion">
+                  <button 
+                    @click="aprobarCambioDNI(solicitud.id, mensajesDNI[solicitud.id])"
+                    :disabled="procesandoDNI[solicitud.id]"
+                    class="btn-aprobar"
+                  >
+                    {{ procesandoDNI[solicitud.id] ? 'Aprobando...' : '✅ Aprobar Cambio' }}
+                  </button>
+                  
+                  <button 
+                    @click="rechazarCambioDNI(solicitud.id, mensajesDNI[solicitud.id])"
+                    :disabled="procesandoDNI[solicitud.id]"
+                    class="btn-rechazar"
+                  >
+                    {{ procesandoDNI[solicitud.id] ? 'Rechazando...' : '❌ Rechazar' }}
+                  </button>
+                </div>
+              </div>
+              
+              <div v-else-if="solicitud.estado === 'aprobado'" class="estado-finalizado">
+                <p class="aprobado">✅ Cambio aprobado el {{ formatearFecha(solicitud.fechaAprobacion) }}</p>
+                <p v-if="solicitud.mensaje" class="mensaje-admin">Mensaje: {{ solicitud.mensaje }}</p>
+              </div>
+              
+              <div v-else-if="solicitud.estado === 'rechazado'" class="estado-finalizado">
+                <p class="rechazado">❌ Cambio rechazado el {{ formatearFecha(solicitud.fechaRechazo) }}</p>
+                <p v-if="solicitud.motivoRechazo" class="mensaje-admin">Motivo: {{ solicitud.motivoRechazo }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Modal de asignación de medicamento a paciente -->
       <div v-if="mostrarModalAsignar" class="modal-asignar-overlay">
         <div class="modal-asignar">
@@ -439,6 +533,71 @@
       <div class="card">
         <h2>⚙️ Configuración del Médico</h2>
         
+        <!-- Configuración de Datos Personales -->
+        <div class="configuracion-datos">
+          <h3>📝 Editar Datos Personales</h3>
+          <form @submit.prevent="guardarDatosPersonales" class="form-datos-personales">
+            <div class="form-row">
+              <label>Nombre:</label>
+              <input 
+                v-model="datosEditables.nombre" 
+                type="text" 
+                required 
+                placeholder="Tu nombre"
+              />
+            </div>
+            
+            <div class="form-row">
+              <label>Apellido:</label>
+              <input 
+                v-model="datosEditables.apellido" 
+                type="text" 
+                required 
+                placeholder="Tu apellido"
+              />
+            </div>
+            
+            <div class="form-row">
+              <label>Email:</label>
+              <input 
+                v-model="datosEditables.email" 
+                type="email" 
+                required 
+                placeholder="tu@email.com"
+              />
+            </div>
+            
+            <div class="form-row">
+              <label>DNI:</label>
+              <div class="dni-container">
+                <input 
+                  :value="admin.dni" 
+                  type="text" 
+                  disabled 
+                  class="dni-disabled"
+                  placeholder="DNI actual"
+                />
+                <button 
+                  type="button" 
+                  @click="solicitarCambioDNI" 
+                  class="btn-solicitar-dni"
+                >
+                  📝 Solicitar cambio
+                </button>
+              </div>
+            </div>
+            
+            <div class="form-actions">
+              <button type="submit" class="btn-guardar-datos">
+                💾 Guardar Cambios
+              </button>
+              <button type="button" @click="cancelarEdicion" class="btn-cancelar">
+                ❌ Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+        
         <!-- Configuración de Firma Digital -->
         <div class="configuracion-firma">
           <h3>🖊️ Firma Digital</h3>
@@ -468,12 +627,64 @@
           <div v-if="firmaGuardada || tieneFirmaMedico" class="firma-preview">
             <h4>Vista previa de la firma:</h4>
             <div class="firma-preview-container">
-              <img :src="firmaGuardada || window.localStorage.getItem('medicoFirma')" alt="Firma del médico" class="firma-preview-img" />
+              <img :src="firmaGuardada || firmaLocalStorage" alt="Firma del médico" class="firma-preview-img" />
             </div>
           </div>
         </div>
       </div>
     </section>
+
+    <!-- Modal para solicitar cambio de DNI -->
+    <div v-if="mostrarModalDNI" class="modal-dni-overlay" @click="cerrarModalDNI">
+      <div class="modal-dni" @click.stop>
+        <div class="modal-dni-header">
+          <h3>📝 Solicitar Cambio de DNI</h3>
+          <button @click="cerrarModalDNI" class="btn-cerrar-modal">✕</button>
+        </div>
+        
+        <div class="modal-dni-content">
+          <p>Para cambiar tu DNI, debes solicitar autorización al administrador.</p>
+          
+          <form @submit.prevent="enviarSolicitudDNI" class="form-solicitud-dni">
+            <div class="form-row">
+              <label>DNI Actual:</label>
+              <input :value="admin.dni" type="text" disabled class="dni-actual" />
+            </div>
+            
+            <div class="form-row">
+              <label>Nuevo DNI:</label>
+              <input 
+                v-model="solicitudDNI.nuevoDNI" 
+                type="text" 
+                required 
+                placeholder="Ingresa el nuevo DNI"
+                pattern="[0-9]{8}"
+                maxlength="8"
+              />
+            </div>
+            
+            <div class="form-row">
+              <label>Motivo del cambio:</label>
+              <textarea 
+                v-model="solicitudDNI.motivo" 
+                required 
+                placeholder="Explica el motivo del cambio de DNI..."
+                rows="3"
+              ></textarea>
+            </div>
+            
+            <div class="form-actions">
+              <button type="submit" class="btn-enviar-solicitud">
+                📤 Enviar Solicitud
+              </button>
+              <button type="button" @click="cerrarModalDNI" class="btn-cancelar">
+                ❌ Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
 
     <!-- Modal de firma digital -->
     <SignatureCanvas 
@@ -495,7 +706,7 @@
 
 <script>
 import { db } from "@/firebase";
-import { collection, getDocs, query, orderBy, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, doc, updateDoc, addDoc } from "firebase/firestore";
 import { approveNurseAccount, rejectNurseAccount } from "@/services/nurseValidationService";
 import { getMedicamentos, addMedicamento, deleteMedicamento } from "@/services/medicamentoService";
 // Importar vue-multiselect
@@ -554,6 +765,7 @@ export default {
       tabs: [
         { id: 'pacientes', label: 'Pacientes' },
         { id: 'enfermeras', label: 'Enfermeras' },
+        { id: 'solicitudesDNI', label: 'Solicitudes DNI' },
         { id: 'configuracion', label: 'Configuración' }
       ],
       nuevoDiagnostico: [],
@@ -566,6 +778,22 @@ export default {
       // Variables para firma digital
       mostrarModalFirma: false,
       firmaGuardada: null,
+      // Variables para configuración
+      datosEditables: {
+        nombre: '',
+        apellido: '',
+        email: ''
+      },
+      mostrarModalDNI: false,
+      solicitudDNI: {
+        nuevoDNI: '',
+        motivo: ''
+      },
+      // Variables para solicitudes de DNI
+      solicitudesDNI: [],
+      cargandoSolicitudesDNI: false,
+      mensajesDNI: {},
+      procesandoDNI: {}
     };
   },
   computed: {
@@ -580,7 +808,14 @@ export default {
       );
     },
     tieneFirmaMedico() {
-      return !!window.localStorage.getItem('medicoFirma');
+      return !!this.firmaLocalStorage;
+    },
+    firmaLocalStorage() {
+      try {
+        return localStorage.getItem('medicoFirma');
+      } catch (e) {
+        return null;
+      }
     }
   },
   watch: {
@@ -589,6 +824,13 @@ export default {
         ? this.pacientes.filter(p => newEnf.pacientesAsignados.includes(p.id))
         : [];
       this.asignacionGuardada = false;
+    },
+    seccionActiva(nuevaSeccion) {
+      if (nuevaSeccion === 'configuracion') {
+        this.cargarDatosEditables();
+      } else if (nuevaSeccion === 'solicitudesDNI') {
+        this.cargarSolicitudesDNI();
+      }
     }
   },
   async mounted() {
@@ -1137,7 +1379,190 @@ export default {
     eliminarFirma() {
       if (confirm('¿Estás seguro de que quieres eliminar tu firma digital?')) {
         this.firmaGuardada = null;
-        window.localStorage.removeItem('medicoFirma');
+        localStorage.removeItem('medicoFirma');
+      }
+    },
+
+    // Métodos para configuración
+    cargarDatosEditables() {
+      this.datosEditables = {
+        nombre: this.admin.nombre || '',
+        apellido: this.admin.apellido || '',
+        email: this.admin.email || ''
+      };
+    },
+
+    async guardarDatosPersonales() {
+      try {
+        // Actualizar en localStorage
+        const usuarioActual = JSON.parse(localStorage.getItem('usuario'));
+        const usuarioActualizado = {
+          ...usuarioActual,
+          nombre: this.datosEditables.nombre,
+          apellido: this.datosEditables.apellido,
+          email: this.datosEditables.email
+        };
+        localStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
+        
+        // Actualizar datos locales
+        this.admin = usuarioActualizado;
+        
+        // Actualizar en Firestore
+        const adminsRef = collection(db, "admins");
+        const querySnapshot = await getDocs(adminsRef);
+        const adminDoc = querySnapshot.docs.find(doc => doc.data().dni === this.admin.dni);
+        
+        if (adminDoc) {
+          await updateDoc(doc(db, "admins", adminDoc.id), {
+            nombre: this.datosEditables.nombre,
+            apellido: this.datosEditables.apellido,
+            email: this.datosEditables.email
+          });
+        }
+        
+        alert('✅ Datos personales actualizados correctamente');
+      } catch (error) {
+        console.error('Error al guardar datos personales:', error);
+        alert('❌ Error al guardar los datos personales');
+      }
+    },
+
+    cancelarEdicion() {
+      this.cargarDatosEditables();
+    },
+
+    solicitarCambioDNI() {
+      this.mostrarModalDNI = true;
+      this.solicitudDNI = {
+        nuevoDNI: '',
+        motivo: ''
+      };
+    },
+
+    cerrarModalDNI() {
+      this.mostrarModalDNI = false;
+      this.solicitudDNI = {
+        nuevoDNI: '',
+        motivo: ''
+      };
+    },
+
+    async enviarSolicitudDNI() {
+      try {
+        // Validar DNI
+        if (!/^\d{8}$/.test(this.solicitudDNI.nuevoDNI)) {
+          alert('❌ El DNI debe tener exactamente 8 dígitos numéricos');
+          return;
+        }
+
+        // Verificar que no sea el mismo DNI
+        if (this.solicitudDNI.nuevoDNI === this.admin.dni) {
+          alert('❌ El nuevo DNI no puede ser igual al actual');
+          return;
+        }
+
+        // Crear solicitud en Firestore
+        await addDoc(collection(db, "solicitudesDNI"), {
+          dniActual: this.admin.dni,
+          nuevoDNI: this.solicitudDNI.nuevoDNI,
+          motivo: this.solicitudDNI.motivo,
+          usuarioId: this.admin.id || this.admin.dni,
+          rol: 'admin',
+          nombre: this.admin.nombre,
+          apellido: this.admin.apellido,
+          email: this.admin.email,
+          fechaSolicitud: new Date().toISOString(),
+          estado: 'pendiente'
+        });
+
+        alert('✅ Solicitud de cambio de DNI enviada correctamente. Será revisada por el administrador.');
+        this.cerrarModalDNI();
+      } catch (error) {
+        console.error('Error al enviar solicitud de DNI:', error);
+        alert('❌ Error al enviar la solicitud de cambio de DNI');
+      }
+    },
+
+    // Métodos para gestión de solicitudes de DNI
+    async cargarSolicitudesDNI() {
+      try {
+        this.cargandoSolicitudesDNI = true;
+        const q = query(
+          collection(db, "solicitudesDNI"),
+          orderBy("fechaSolicitud", "desc")
+        );
+        const querySnapshot = await getDocs(q);
+        this.solicitudesDNI = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+      } catch (error) {
+        console.error('Error al cargar solicitudes de DNI:', error);
+        alert('Error al cargar las solicitudes de DNI');
+      } finally {
+        this.cargandoSolicitudesDNI = false;
+      }
+    },
+
+    async aprobarCambioDNI(solicitudId, mensaje = '') {
+      this.procesandoDNI[solicitudId] = true;
+      try {
+        const solicitud = this.solicitudesDNI.find(s => s.id === solicitudId);
+        if (!solicitud) {
+          alert('Solicitud no encontrada');
+          return;
+        }
+
+        // Actualizar la solicitud en Firestore
+        const solicitudRef = doc(db, "solicitudesDNI", solicitudId);
+        await updateDoc(solicitudRef, {
+          estado: 'aprobado',
+          fechaAprobacion: new Date().toISOString(),
+          mensaje: mensaje
+        });
+
+        // Actualizar el DNI del usuario en su colección correspondiente
+        const coleccion = solicitud.rol === 'paciente' ? 'pacientes' : 
+                         solicitud.rol === 'enfermera' ? 'enfermeras' : 'admins';
+        
+        const usuariosRef = collection(db, coleccion);
+        const querySnapshot = await getDocs(usuariosRef);
+        const usuarioDoc = querySnapshot.docs.find(doc => doc.data().dni === solicitud.dniActual);
+        
+        if (usuarioDoc) {
+          await updateDoc(doc(db, coleccion, usuarioDoc.id), {
+            dni: solicitud.nuevoDNI
+          });
+        }
+
+        alert('✅ Cambio de DNI aprobado correctamente');
+        await this.cargarSolicitudesDNI(); // Recargar la lista
+      } catch (error) {
+        console.error('Error al aprobar cambio de DNI:', error);
+        alert('Error al aprobar el cambio de DNI');
+      } finally {
+        this.procesandoDNI[solicitudId] = false;
+      }
+    },
+
+    async rechazarCambioDNI(solicitudId, motivo = '') {
+      this.procesandoDNI[solicitudId] = true;
+      try {
+        // Actualizar la solicitud en Firestore
+        const solicitudRef = doc(db, "solicitudesDNI", solicitudId);
+        await updateDoc(solicitudRef, {
+          estado: 'rechazado',
+          fechaRechazo: new Date().toISOString(),
+          motivoRechazo: motivo
+        });
+
+        alert('✅ Solicitud de cambio de DNI rechazada');
+        await this.cargarSolicitudesDNI(); // Recargar la lista
+      } catch (error) {
+        console.error('Error al rechazar cambio de DNI:', error);
+        alert('Error al rechazar la solicitud de cambio de DNI');
+      } finally {
+        this.procesandoDNI[solicitudId] = false;
       }
     }
   }
@@ -1909,157 +2334,184 @@ export default {
 }
 .admin-tabs {
   display: flex;
-  gap: 8px;
-  margin-bottom: 28px;
-  border-bottom: 2px solid #e0e0e0;
-  overflow-x: auto;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 10px;
+  padding: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
+  gap: 4px;
 }
+
 .admin-tab {
-  background: none;
+  flex: 1;
+  padding: 12px 20px;
   border: none;
-  outline: none;
-  padding: 12px 22px;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
   font-size: 16px;
   font-weight: 500;
-  color: #555;
-  border-bottom: 3px solid transparent;
-  cursor: pointer;
-  transition: color 0.2s, border-bottom 0.2s;
-  border-radius: 8px 8px 0 0;
-}
-.admin-tab.active {
-  color: #1976d2;
-  border-bottom: 3px solid #1976d2;
-  background: #f7f9fa;
-}
-@media (max-width: 600px) {
-  .admin-tab {
-    font-size: 15px;
-    padding: 10px 10px;
-  }
-  .admin-tabs {
-    gap: 2px;
-    margin-bottom: 18px;
-  }
-}
-.tabla-enfermeras-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  background: white;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  border-radius: 8px;
-  overflow: hidden;
-  margin-bottom: 24px;
-}
-.tabla-enfermeras-table th, .tabla-enfermeras-table td {
-  border: 1px solid #e0e0e0;
-  padding: 14px 12px;
-  text-align: left;
-  vertical-align: middle;
-  background: #fff;
-}
-.tabla-enfermeras-table th {
-  background: #f7f9fa;
-  font-weight: 600;
-}
-.tabla-enfermeras-table tr:not(:last-child) td {
-  border-bottom: 1.5px solid #e0e0e0;
-}
-.tabla-enfermeras-table td:not(:last-child),
-.tabla-enfermeras-table th:not(:last-child) {
-  border-right: 1.5px solid #e0e0e0;
-}
-.tabla-enfermeras-table tr {
-  transition: background 0.2s;
-}
-.tabla-enfermeras-table tr:hover {
-  background: #f5faff;
-}
-@media (max-width: 600px) {
-  .tabla-enfermeras-table th, .tabla-enfermeras-table td {
-    padding: 10px 6px;
-    font-size: 14px;
-  }
-}
-.error-msg {
-  color: #d32f2f;
-  font-size: 14px;
-  margin-top: 4px;
-  margin-bottom: 2px;
+  color: #666;
+  transition: all 0.3s ease;
 }
 
-/* Estilos para el botón de ver recetas */
-.btn-ver-recetas {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  padding: 8px 12px;
+.admin-tab:hover {
+  background: rgba(0, 123, 255, 0.1);
+  color: #007bff;
+}
+
+.admin-tab.active {
+  background: #007bff;
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
+}
+
+/* Estilos para la sección de configuración */
+.configuracion-datos {
+  max-width: 600px;
+  margin: 0 auto 30px auto;
+}
+
+.configuracion-datos h3 {
+  color: #333;
+  margin-bottom: 20px;
+  font-size: 18px;
+}
+
+.form-datos-personales {
   background: #f8f9fa;
+  padding: 24px;
+  border-radius: 10px;
   border: 1px solid #e9ecef;
+}
+
+.form-datos-personales .form-row {
+  margin-bottom: 20px;
+}
+
+.form-datos-personales label {
+  display: block;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.form-datos-personales input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 16px;
+  transition: border-color 0.3s;
+}
+
+.form-datos-personales input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.dni-container {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.dni-disabled {
+  background: #f8f9fa;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.btn-solicitar-dni {
+  background: #ffc107;
+  color: #212529;
+  border: none;
+  padding: 12px 16px;
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.2s;
   font-size: 14px;
-  text-decoration: none;
-  color: inherit;
+  font-weight: 500;
+  transition: background 0.3s;
+  white-space: nowrap;
 }
 
-.btn-ver-recetas:hover {
-  background: #e9ecef;
-  border-color: #2d4fff;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(45, 79, 255, 0.1);
+.btn-solicitar-dni:hover {
+  background: #e0a800;
 }
 
-.recetas-contador {
-  font-weight: bold;
-  color: #2d4fff;
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  justify-content: flex-end;
 }
 
-.icono-ver {
-  font-size: 12px;
-  opacity: 0.7;
+.btn-guardar-datos {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  transition: background 0.3s;
 }
 
-/* Estilos para el modal de recetas */
-.modal-recetas-overlay {
+.btn-guardar-datos:hover {
+  background: #218838;
+}
+
+.btn-cancelar {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  transition: background 0.3s;
+}
+
+.btn-cancelar:hover {
+  background: #5a6268;
+}
+
+/* Estilos para el modal de DNI */
+.modal-dni-overlay {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
+  right: 0;
+  bottom: 0;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
-  align-items: center;
   justify-content: center;
-  z-index: 10000;
-  padding: 20px;
+  align-items: center;
+  z-index: 1000;
 }
 
-.modal-recetas {
+.modal-dni {
   background: white;
   border-radius: 12px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-  width: 100%;
-  max-width: 800px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
-.modal-recetas-header {
+.modal-dni-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid #e0e0e0;
-  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
 }
 
-.modal-recetas-header h3 {
+.modal-dni-header h3 {
   margin: 0;
   color: #333;
   font-size: 18px;
@@ -2073,172 +2525,95 @@ export default {
   color: #666;
   padding: 4px;
   border-radius: 4px;
-  transition: background 0.2s;
+  transition: background 0.3s;
 }
 
 .btn-cerrar-modal:hover {
-  background: #e0e0e0;
-}
-
-.modal-recetas-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px 24px;
-}
-
-.sin-recetas-modal {
-  text-align: center;
-  padding: 40px;
-  color: #666;
-  font-style: italic;
-}
-
-.recetas-por-fecha {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.grupo-fecha {
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.fecha-grupo {
-  background: #f8f9fa;
-  margin: 0;
-  padding: 12px 16px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-  border-bottom: 1px solid #e0e0e0;
-  text-transform: capitalize;
-}
-
-.recetas-del-dia {
-  background: white;
-}
-
-.receta-modal-item {
-  padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
-  transition: background 0.2s;
-}
-
-.receta-modal-item:last-child {
-  border-bottom: none;
-}
-
-.receta-modal-item:hover {
   background: #f8f9fa;
 }
 
-.receta-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
+.modal-dni-content {
+  padding: 24px;
 }
 
-.receta-nombre {
-  color: #2d4fff;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.receta-hora {
+.modal-dni-content p {
   color: #666;
-  font-size: 14px;
-  background: #f0f0f0;
-  padding: 4px 8px;
-  border-radius: 4px;
+  margin-bottom: 20px;
+  line-height: 1.5;
 }
 
-.receta-modal-info {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.form-solicitud-dni .form-row {
+  margin-bottom: 20px;
+}
+
+.form-solicitud-dni label {
+  display: block;
+  font-weight: 600;
+  color: #333;
   margin-bottom: 8px;
 }
 
-.receta-dosis-modal {
-  background: #e3f2fd;
-  color: #1976d2;
-  padding: 4px 8px;
+.form-solicitud-dni input,
+.form-solicitud-dni textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
   border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 16px;
+  transition: border-color 0.3s;
 }
 
-.receta-frecuencia-modal {
-  background: #f3e5f5;
-  color: #7b1fa2;
-  padding: 4px 8px;
+.form-solicitud-dni input:focus,
+.form-solicitud-dni textarea:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.dni-actual {
+  background: #f8f9fa;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.btn-enviar-solicitud {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 12px 24px;
   border-radius: 6px;
-  font-size: 13px;
+  cursor: pointer;
+  font-size: 16px;
   font-weight: 500;
+  transition: background 0.3s;
 }
 
-.receta-instrucciones-modal {
-  background: #fff3e0;
-  color: #f57c00;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
+.btn-enviar-solicitud:hover {
+  background: #0056b3;
 }
 
-.receta-diagnosticos {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid #f0f0f0;
-}
-
-.receta-diagnosticos strong {
-  color: #333;
-  font-size: 13px;
-  margin-right: 8px;
-}
-
-.diagnostico-tag {
-  display: inline-block;
-  background: #e8f5e8;
-  color: #2e7d32;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 12px;
-  margin: 2px 4px 2px 0;
-}
-
-/* Responsive para el modal */
+/* Responsive para configuración */
 @media (max-width: 768px) {
-  .modal-recetas {
-    max-width: 95vw;
-    max-height: 90vh;
-  }
-  
-  .modal-recetas-header {
-    padding: 16px 20px;
-  }
-  
-  .modal-recetas-header h3 {
-    font-size: 16px;
-  }
-  
-  .modal-recetas-content {
-    padding: 16px 20px;
-  }
-  
-  .receta-modal-header {
+  .admin-tabs {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
   }
-  
-  .receta-modal-info {
+
+  .admin-tab {
+    text-align: center;
+  }
+
+  .dni-container {
     flex-direction: column;
-    gap: 4px;
+    align-items: stretch;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .modal-dni {
+    width: 95%;
+    margin: 20px;
   }
 }
 

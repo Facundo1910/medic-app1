@@ -10,9 +10,23 @@
           </button>
         </div>
       </header>
+
+      <!-- Menú de pestañas -->
+      <nav class="enfermera-tabs">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          :class="['enfermera-tab', { active: seccionActiva === tab.id }]"
+          @click="seccionActiva = tab.id"
+        >
+          {{ tab.label }}
+        </button>
+      </nav>
   
-      <!-- Selector de paciente -->
-      <section class="paciente-selector">
+      <!-- Sección Pacientes -->
+      <section v-if="seccionActiva === 'pacientes'">
+        <!-- Selector de paciente -->
+        <section class="paciente-selector">
         <div>
           <h2>Seleccionar Paciente</h2>
           <div class="selector-container">
@@ -27,21 +41,16 @@
         </div>
       </section>
   
-      <!-- Información del paciente seleccionado -->
-      <section v-if="pacienteActual" class="paciente-info">
-        <h2>Paciente: {{ pacienteActual.apellido }}, {{ pacienteActual.nombre }}</h2>
-        <PacienteCard
-          :nombre="pacienteActual.nombre"
-          :apellido="pacienteActual.apellido"
-          :diagnosticos="diagnosticosSeleccionados || []"
-        />
-      </section>
-  
-      <!-- Formularios de edición (solo visibles si hay paciente seleccionado) -->
+      <!-- Información del paciente seleccionado y módulos reutilizables -->
       <div v-if="pacienteActual">
+        <PacienteInfo :paciente="pacienteActual" />
+        <PacienteDiagnosticos :diagnosticos="pacienteActual.diagnosticos || []" />
+        <PacienteHistorialMedicacion :historial="pacienteActual.medicaciones || []" />
+        <PacienteResumen :diagnosticos="pacienteActual.diagnosticos || []" :historial="pacienteActual.medicaciones || []" />
+        
         <!-- Sección de medicamentos indicados por el administrador -->
         <section class="medicamentos-indicados card">
-          <h2>Medicamentos indicados por el administrador</h2>
+          <h2>💊 Medicamentos indicados por el administrador</h2>
           <div v-if="medicamentosIndicadosVisibles.length > 0" class="medicamentos-indicados-scroll">
             <div v-for="med in medicamentosIndicadosVisibles" :key="med.id" class="med-indicado-item">
               <div class="med-indicado-nombre">{{ med.nombre }}</div>
@@ -56,9 +65,10 @@
             <p>No hay medicamentos indicados actualmente</p>
           </div>
         </section>
-      
+        
+        <!-- Formulario de registro de medicación -->
         <section class="medicacion-form card">
-          <h2 style="margin-top:0;">Cargar nueva medicación</h2>
+          <h2>💊 Cargar nueva medicación</h2>
           <MedicacionForm
             :medicamento="nueva.medicamento"
             @update:medicamento="nueva.medicamento = $event"
@@ -75,90 +85,54 @@
             {{ emailNotificationStatus }}
           </div>
         </section>
-      
+        
+        <!-- Formulario de registro de signos vitales -->
         <section class="signos-vitales-form card">
-          <h2 style="margin-top:0;">Registrar signos vitales</h2>
-          <form @submit.prevent="registrarSignosVitales">
+          <h2>🩺 Registrar signos vitales</h2>
+          <form @submit.prevent="registrarSignosVitales" class="form-signos">
             <div class="form-row">
               <label>Temperatura corporal (°C):</label>
               <input v-model.number="signos.temperatura" type="number" step="0.1" min="30" max="45" required />
             </div>
+            
             <div class="form-row">
               <label>Presión arterial (mmHg):</label>
               <input v-model="signos.presion" type="text" pattern="^\d{2,3}/\d{2,3}$" placeholder="Ej: 120/80" required />
             </div>
+            
             <div class="form-row">
               <label>Frecuencia cardíaca (lpm):</label>
               <input v-model.number="signos.frecuenciaCardiaca" type="number" min="30" max="200" required />
             </div>
+            
             <div class="form-row">
               <label>Frecuencia respiratoria (resps/min):</label>
               <input v-model.number="signos.frecuenciaRespiratoria" type="number" min="5" max="40" required />
             </div>
+            
             <div class="form-row">
               <label>Saturación de oxígeno (% SpO2):</label>
               <input v-model.number="signos.saturacionOxigeno" type="number" min="50" max="100" required />
             </div>
+            
             <div class="form-row">
               <label>Glucemia (mg/dL, opcional):</label>
               <input v-model.number="signos.glucemia" type="number" min="20" max="600" />
             </div>
+            
             <div class="form-row">
               <label>Fecha y hora:</label>
               <input v-model="signos.fechaHora" type="datetime-local" required />
             </div>
+            
             <button type="submit" class="btn-registrar-signos">Registrar signos vitales</button>
             <span v-if="signosExito" class="exito">Signos vitales registrados ✔️</span>
             <span v-if="signosError" class="error">Error al registrar signos vitales</span>
           </form>
         </section>
-      
-        <section class="historial card">
-          <h2>Historial de medicación</h2>
-          <div v-if="historial.length > 0">
-            <div v-for="(grupo, key) in historialAgrupado" :key="key" class="grupo-mes">
-              <div class="grupo-header" @click="toggleGrupo(key)">
-                <span style="font-weight:bold; cursor:pointer;">
-                  <span v-if="grupoAbierto[key]">▼</span>
-                  <span v-else>▶</span>
-                  {{ key }}
-                </span>
-              </div>
-              <div v-show="grupoAbierto[key]">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Medicamento</th>
-                      <th>Dosis</th>
-                      <th>Fecha y hora</th>
-                      <th>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(item, idx) in grupoPaginado(key)" :key="idx">
-                      <td>{{ item.medicamento }}</td>
-                      <td>{{ item.dosis }} mg</td>
-                      <td>{{ item.fechaHora }}</td>
-                      <td>
-                        <button @click="eliminarMedicacionPorGrupo(key, idx)" class="btn-eliminar">
-                          🗑️ Eliminar
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-                <div class="paginacion">
-                  <button @click="cambiarPagina(key, -1)" :disabled="paginas[key] === 1">Anterior</button>
-                  <span>Página {{ paginas[key] }} de {{ totalPaginas(key) }}</span>
-                  <button @click="cambiarPagina(key, 1)" :disabled="paginas[key] === totalPaginas(key)">Siguiente</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div v-else class="no-data">
-            <p>No hay medicaciones registradas</p>
-          </div>
-        </section>
+        
+        <!-- Gráficos de signos vitales (al final) -->
+        <SignosVitalesCharts :signosVitales="pacienteActual.signosVitales || []" />
       </div>
   
       <!-- Mensaje cuando no hay paciente seleccionado -->
@@ -168,30 +142,152 @@
           <p>Selecciona un paciente de la lista para comenzar a gestionar su información médica.</p>
         </div>
       </div>
-      <!-- Después de la info del paciente seleccionado, mostrar los gráficos si hay signos vitales -->
-      <section v-if="pacienteActual && pacienteActual.signosVitales && pacienteActual.signosVitales.length > 0" class="signos-vitales">
+      </section>
+
+      <!-- Sección Configuración -->
+      <section v-if="seccionActiva === 'configuracion'">
         <div class="card">
-          <SignosVitalesCharts :signosVitales="pacienteActual.signosVitales" :titulo="'Signos Vitales de ' + pacienteActual.nombre" />
+          <h2>⚙️ Configuración de Mi Cuenta</h2>
+          
+          <!-- Formulario de edición de datos personales -->
+          <div class="configuracion-datos">
+            <h3>📝 Editar Datos Personales</h3>
+            <form @submit.prevent="guardarDatosPersonales" class="form-datos-personales">
+              <div class="form-row">
+                <label>Nombre:</label>
+                <input 
+                  v-model="datosEditables.nombre" 
+                  type="text" 
+                  required 
+                  placeholder="Tu nombre"
+                />
+              </div>
+              
+              <div class="form-row">
+                <label>Apellido:</label>
+                <input 
+                  v-model="datosEditables.apellido" 
+                  type="text" 
+                  required 
+                  placeholder="Tu apellido"
+                />
+              </div>
+              
+              <div class="form-row">
+                <label>Email:</label>
+                <input 
+                  v-model="datosEditables.email" 
+                  type="email" 
+                  required 
+                  placeholder="tu@email.com"
+                />
+              </div>
+              
+              <div class="form-row">
+                <label>DNI:</label>
+                <div class="dni-container">
+                  <input 
+                    :value="enfermera.dni" 
+                    type="text" 
+                    disabled 
+                    class="dni-disabled"
+                    placeholder="DNI actual"
+                  />
+                  <button 
+                    type="button" 
+                    @click="solicitarCambioDNI" 
+                    class="btn-solicitar-dni"
+                  >
+                    📝 Solicitar cambio
+                  </button>
+                </div>
+              </div>
+              
+              <div class="form-actions">
+                <button type="submit" class="btn-guardar-datos">
+                  💾 Guardar Cambios
+                </button>
+                <button type="button" @click="cancelarEdicion" class="btn-cancelar">
+                  ❌ Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       </section>
+    </div>
+
+    <!-- Modal para solicitar cambio de DNI -->
+    <div v-if="mostrarModalDNI" class="modal-dni-overlay" @click="cerrarModalDNI">
+      <div class="modal-dni" @click.stop>
+        <div class="modal-dni-header">
+          <h3>📝 Solicitar Cambio de DNI</h3>
+          <button @click="cerrarModalDNI" class="btn-cerrar-modal">✕</button>
+        </div>
+        
+        <div class="modal-dni-content">
+          <p>Para cambiar tu DNI, debes solicitar autorización al administrador.</p>
+          
+          <form @submit.prevent="enviarSolicitudDNI" class="form-solicitud-dni">
+            <div class="form-row">
+              <label>DNI Actual:</label>
+              <input :value="enfermera.dni" type="text" disabled class="dni-actual" />
+            </div>
+            
+            <div class="form-row">
+              <label>Nuevo DNI:</label>
+              <input 
+                v-model="solicitudDNI.nuevoDNI" 
+                type="text" 
+                required 
+                placeholder="Ingresa el nuevo DNI"
+                pattern="[0-9]{8}"
+                maxlength="8"
+              />
+            </div>
+            
+            <div class="form-row">
+              <label>Motivo del cambio:</label>
+              <textarea 
+                v-model="solicitudDNI.motivo" 
+                required 
+                placeholder="Explica el motivo del cambio de DNI..."
+                rows="3"
+              ></textarea>
+            </div>
+            
+            <div class="form-actions">
+              <button type="submit" class="btn-enviar-solicitud">
+                📤 Enviar Solicitud
+              </button>
+              <button type="button" @click="cerrarModalDNI" class="btn-cancelar">
+                ❌ Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   </div>
 </template>
   
 <script>
 import { db } from "@/firebase";
-import { collection, getDocs, updateDoc, arrayUnion, arrayRemove, doc } from "firebase/firestore";
-import PacienteCard from "@/components/commons/PacienteCard.vue";
-import MedicacionForm from "@/components/commons/MedicacionForm.vue";
+import { collection, getDocs, updateDoc, arrayUnion, arrayRemove, doc, addDoc } from "firebase/firestore";
 import { sendMedicationNotification, isEmailJSConfigured, sendVitalSignsNotification } from "@/services/emailService";
 import { getMedicamentos } from "@/services/medicamentoService";
 import SignosVitalesCharts from "@/components/commons/SignosVitalesCharts.vue";
 import { generarPDFSignosYMedicaciones } from '../utils/helpers';
 import { sendPatientReportWithAttachment } from '@/services/emailService';
+import PacienteInfo from './commons/PacienteInfo.vue';
+import PacienteDiagnosticos from './commons/PacienteDiagnosticos.vue';
+import PacienteHistorialMedicacion from './commons/PacienteHistorialMedicacion.vue';
+import PacienteResumen from './commons/PacienteResumen.vue';
+import MedicacionForm from './commons/MedicacionForm.vue';
 
 export default {
   name: "HomeEnfermera",
-  components: { PacienteCard, MedicacionForm, SignosVitalesCharts },
+  components: { SignosVitalesCharts, PacienteInfo, PacienteDiagnosticos, PacienteHistorialMedicacion, PacienteResumen, MedicacionForm },
   data() {
     return {
       enfermera: {
@@ -226,6 +322,22 @@ export default {
       signosError: false,
       medicamentosDisponibles: [],
       medicamentosIndicadosVisibles: [],
+      // Variables para configuración
+      seccionActiva: 'pacientes',
+      tabs: [
+        { id: 'pacientes', label: 'Pacientes' },
+        { id: 'configuracion', label: 'Configuración' }
+      ],
+      datosEditables: {
+        nombre: '',
+        apellido: '',
+        email: ''
+      },
+      mostrarModalDNI: false,
+      solicitudDNI: {
+        nuevoDNI: '',
+        motivo: ''
+      }
     };
   },
   watch: {
@@ -237,6 +349,11 @@ export default {
         } else {
           this.medicamentosIndicadosVisibles = [];
         }
+      }
+    },
+    seccionActiva(nuevaSeccion) {
+      if (nuevaSeccion === 'configuracion') {
+        this.cargarDatosEditables();
       }
     }
   },
@@ -643,6 +760,106 @@ export default {
         this.pacienteActual.medicamentosIndicados = visibles;
         this.pacienteActual.medicamentosHistoricos = historicos;
       }
+    },
+
+    // Métodos para configuración
+    cargarDatosEditables() {
+      this.datosEditables = {
+        nombre: this.enfermera.nombre || '',
+        apellido: this.enfermera.apellido || '',
+        email: this.enfermera.email || ''
+      };
+    },
+
+    async guardarDatosPersonales() {
+      try {
+        // Actualizar en localStorage
+        const usuarioActual = JSON.parse(localStorage.getItem('usuario'));
+        const usuarioActualizado = {
+          ...usuarioActual,
+          nombre: this.datosEditables.nombre,
+          apellido: this.datosEditables.apellido,
+          email: this.datosEditables.email
+        };
+        localStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
+        
+        // Actualizar datos locales
+        this.enfermera = usuarioActualizado;
+        
+        // Actualizar en Firestore
+        const enfermerasRef = collection(db, "enfermeras");
+        const querySnapshot = await getDocs(enfermerasRef);
+        const enfermeraDoc = querySnapshot.docs.find(doc => doc.data().dni === this.enfermera.dni);
+        
+        if (enfermeraDoc) {
+          await updateDoc(doc(db, "enfermeras", enfermeraDoc.id), {
+            nombre: this.datosEditables.nombre,
+            apellido: this.datosEditables.apellido,
+            email: this.datosEditables.email
+          });
+        }
+        
+        alert('✅ Datos personales actualizados correctamente');
+      } catch (error) {
+        console.error('Error al guardar datos personales:', error);
+        alert('❌ Error al guardar los datos personales');
+      }
+    },
+
+    cancelarEdicion() {
+      this.cargarDatosEditables();
+    },
+
+    solicitarCambioDNI() {
+      this.mostrarModalDNI = true;
+      this.solicitudDNI = {
+        nuevoDNI: '',
+        motivo: ''
+      };
+    },
+
+    cerrarModalDNI() {
+      this.mostrarModalDNI = false;
+      this.solicitudDNI = {
+        nuevoDNI: '',
+        motivo: ''
+      };
+    },
+
+    async enviarSolicitudDNI() {
+      try {
+        // Validar DNI
+        if (!/^\d{8}$/.test(this.solicitudDNI.nuevoDNI)) {
+          alert('❌ El DNI debe tener exactamente 8 dígitos numéricos');
+          return;
+        }
+
+        // Verificar que no sea el mismo DNI
+        if (this.solicitudDNI.nuevoDNI === this.enfermera.dni) {
+          alert('❌ El nuevo DNI no puede ser igual al actual');
+          return;
+        }
+
+        // Crear solicitud en Firestore
+        await addDoc(collection(db, "solicitudesDNI"), {
+          dniActual: this.enfermera.dni,
+          nuevoDNI: this.solicitudDNI.nuevoDNI,
+          motivo: this.solicitudDNI.motivo,
+          usuarioId: this.enfermera.id || this.enfermera.dni,
+          rol: 'enfermera',
+          nombre: this.enfermera.nombre,
+          apellido: this.enfermera.apellido,
+          email: this.enfermera.email,
+          fechaSolicitud: new Date().toISOString(),
+          estado: 'pendiente'
+        });
+
+        alert('✅ Solicitud de cambio de DNI enviada correctamente. Será revisada por el administrador.');
+        this.cerrarModalDNI();
+      } catch (error) {
+        console.error('Error al enviar solicitud de DNI:', error);
+        alert('❌ Error al enviar la solicitud de cambio de DNI');
+      }
     }
   }
 };
@@ -985,6 +1202,267 @@ th {
   margin-bottom: 2px;
 }
 
+/* Estilos para las pestañas */
+.enfermera-tabs {
+  display: flex;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 10px;
+  padding: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
+  gap: 4px;
+}
+
+.enfermera-tab {
+  flex: 1;
+  padding: 12px 20px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.3s ease;
+}
+
+.enfermera-tab:hover {
+  background: rgba(0, 123, 255, 0.1);
+  color: #007bff;
+}
+
+.enfermera-tab.active {
+  background: #007bff;
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
+}
+
+/* Estilos para la sección de configuración */
+.configuracion-datos {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.configuracion-datos h3 {
+  color: #333;
+  margin-bottom: 20px;
+  font-size: 18px;
+}
+
+.form-datos-personales {
+  background: #f8f9fa;
+  padding: 24px;
+  border-radius: 10px;
+  border: 1px solid #e9ecef;
+}
+
+.form-datos-personales .form-row {
+  margin-bottom: 20px;
+}
+
+.form-datos-personales label {
+  display: block;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.form-datos-personales input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 16px;
+  transition: border-color 0.3s;
+}
+
+.form-datos-personales input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.dni-container {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.dni-disabled {
+  background: #f8f9fa;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.btn-solicitar-dni {
+  background: #ffc107;
+  color: #212529;
+  border: none;
+  padding: 12px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.3s;
+  white-space: nowrap;
+}
+
+.btn-solicitar-dni:hover {
+  background: #e0a800;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  justify-content: flex-end;
+}
+
+.btn-guardar-datos {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  transition: background 0.3s;
+}
+
+.btn-guardar-datos:hover {
+  background: #218838;
+}
+
+.btn-cancelar {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  transition: background 0.3s;
+}
+
+.btn-cancelar:hover {
+  background: #5a6268;
+}
+
+/* Estilos para el modal de DNI */
+.modal-dni-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-dni {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-dni-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.modal-dni-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 18px;
+}
+
+.btn-cerrar-modal {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.3s;
+}
+
+.btn-cerrar-modal:hover {
+  background: #f8f9fa;
+}
+
+.modal-dni-content {
+  padding: 24px;
+}
+
+.modal-dni-content p {
+  color: #666;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.form-solicitud-dni .form-row {
+  margin-bottom: 20px;
+}
+
+.form-solicitud-dni label {
+  display: block;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.form-solicitud-dni input,
+.form-solicitud-dni textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 16px;
+  transition: border-color 0.3s;
+}
+
+.form-solicitud-dni input:focus,
+.form-solicitud-dni textarea:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.dni-actual {
+  background: #f8f9fa;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.btn-enviar-solicitud {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  transition: background 0.3s;
+}
+
+.btn-enviar-solicitud:hover {
+  background: #0056b3;
+}
+
 @media (max-width: 768px) {
   .header {
     flex-direction: column;
@@ -998,6 +1476,28 @@ th {
   
   .paciente-select {
     width: 100%;
+  }
+
+  .enfermera-tabs {
+    flex-direction: column;
+  }
+
+  .enfermera-tab {
+    text-align: center;
+  }
+
+  .dni-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .modal-dni {
+    width: 95%;
+    margin: 20px;
   }
 }
 </style> 

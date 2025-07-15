@@ -10,120 +10,32 @@
           </button>
         </div>
       </header>
-  
-      <!-- Información del paciente -->
-      <section class="paciente-info">
-        <div class="card">
-          <h2>👤 Información Personal</h2>
-          <div class="info-grid">
-            <div class="info-item">
-              <label>Nombre:</label>
-              <span>{{ paciente.nombre }}</span>
-            </div>
-            <div class="info-item">
-              <label>Apellido:</label>
-              <span>{{ paciente.apellido }}</span>
-            </div>
-            <div class="info-item">
-              <label>DNI:</label>
-              <span>{{ paciente.dni }}</span>
-            </div>
-            <div class="info-item">
-              <label>Fecha de nacimiento:</label>
-              <span>{{ paciente.fechaNacimiento ? paciente.fechaNacimiento : '-' }}</span>
-            </div>
-            <div class="info-item">
-              <label>Edad:</label>
-              <span>{{ calcularEdad(paciente.fechaNacimiento) }}</span>
-            </div>
-            <div class="info-item">
-              <label>Email:</label>
-              <span>{{ paciente.email }}</span>
-            </div>
 
-          </div>
-        </div>
-      </section>
+      <!-- Menú de pestañas -->
+      <nav class="paciente-tabs">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          :class="['paciente-tab', { active: seccionActiva === tab.id }]"
+          @click="seccionActiva = tab.id"
+        >
+          {{ tab.label }}
+        </button>
+      </nav>
   
-      <!-- Diagnósticos -->
-      <section class="diagnosticos">
-        <div class="card">
-          <h2>🏥 Diagnósticos</h2>
-          <div v-if="diagnosticos.length > 0" class="diagnosticos-list">
-            <div v-for="(diagnostico, index) in diagnosticos" :key="index" class="diagnostico-item">
-              <span class="diagnostico-text">{{ diagnostico }}</span>
-            </div>
-          </div>
-          <div v-else class="no-data">
-            <p>No hay diagnósticos registrados</p>
-          </div>
-        </div>
-      </section>
+      <!-- Sección Información -->
+      <section v-if="seccionActiva === 'informacion'">
+        <!-- Información del paciente -->
+        <PacienteInfo :paciente="paciente" />
   
-      <!-- Historial de medicación -->
-      <section class="historial">
-        <div class="card">
-          <h2>💊 Historial de Medicación</h2>
-          <div v-if="historial.length > 0">
-            <div v-for="(grupo, key) in historialAgrupado" :key="key" class="grupo-mes">
-              <div class="grupo-header" @click="toggleGrupo(key)">
-                <span style="font-weight:bold; cursor:pointer;">
-                  <span v-if="grupoAbierto[key]">▼</span>
-                  <span v-else>▶</span>
-                  {{ key }}
-                </span>
-              </div>
-              <div v-show="grupoAbierto[key]">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Medicamento</th>
-                      <th>Dosis</th>
-                      <th>Fecha y hora</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(item, idx) in grupoPaginado(key)" :key="idx">
-                      <td>{{ item.medicamento }}</td>
-                      <td>{{ item.dosis }} mg</td>
-                      <td>{{ formatearFecha(item.fechaHora) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <div class="paginacion">
-                  <button @click="cambiarPagina(key, -1)" :disabled="paginas[key] === 1">Anterior</button>
-                  <span>Página {{ paginas[key] }} de {{ totalPaginas(key) }}</span>
-                  <button @click="cambiarPagina(key, 1)" :disabled="paginas[key] === totalPaginas(key)">Siguiente</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div v-else class="no-data">
-            <p>No hay medicaciones registradas</p>
-          </div>
-        </div>
-      </section>
+        <!-- Diagnósticos -->
+        <PacienteDiagnosticos :diagnosticos="diagnosticos" />
   
-      <!-- Resumen -->
-      <section class="resumen">
-        <div class="card">
-          <h2>📊 Resumen</h2>
-          <div class="stats-grid">
-            <div class="stat-item">
-              <div class="stat-number">{{ diagnosticos.length }}</div>
-              <div class="stat-label">Diagnósticos</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-number">{{ historial.length }}</div>
-              <div class="stat-label">Medicaciones</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-number">{{ medicacionesEsteMes }}</div>
-              <div class="stat-label">Este mes</div>
-            </div>
-          </div>
-        </div>
-      </section>
+        <!-- Historial de medicación -->
+        <PacienteHistorialMedicacion :historial="historial" />
+  
+        <!-- Resumen -->
+        <PacienteResumen :diagnosticos="diagnosticos" :historial="historial" />
 
       <!-- Signos Vitales -->
       <section class="signos-vitales">
@@ -138,46 +50,60 @@
       </section>
 
       <!-- Receta Médica -->
-      <section class="receta-medica">
-        <div class="card">
-          <h2>💊 Receta Médica</h2>
-          <div v-if="paciente.medicamentosIndicados && paciente.medicamentosIndicados.length">
-            <ul class="lista-receta">
-              <li v-for="med in paciente.medicamentosIndicados" :key="med.id" class="receta-item-flex">
-                <div class="receta-info-flex">
-                  <strong>{{ med.nombre }}</strong>
-                  <span v-if="med.dosisRecomendada"> - {{ med.dosisRecomendada }} mg</span>
-                  <span v-if="med.frecuencia"> - {{ med.frecuencia }}</span>
-                  <span v-if="med.instrucciones"> - {{ med.instrucciones }}</span>
-                  <span v-if="med.fechaAsignacion"> ({{ formatearFecha(med.fechaAsignacion) }})</span>
-                </div>
-                <button @click="descargarRecetaIndividualPDF(med)" class="btn-descargar-receta-individual">
-                  <span class="icono-descarga">📄</span>
-                </button>
-              </li>
-            </ul>
-          </div>
-          <div v-else class="no-data">
-            <p>No hay medicación vigente</p>
-          </div>
-        </div>
+      <PacienteRecetaMedica 
+        :medicamentosIndicados="paciente.medicamentosIndicados" 
+        @descargar-receta="descargarRecetaIndividualPDF"
+      />
+      </section>
+
+      <!-- Sección Configuración -->
+      <section v-if="seccionActiva === 'configuracion'">
+        <PacienteConfiguracion 
+          :paciente="paciente"
+          :datosEditables="datosEditables"
+          @guardar-datos="guardarDatosPersonales"
+          @solicitar-cambio-dni="solicitarCambioDNI"
+          @cancelar-edicion="cancelarEdicion"
+        />
       </section>
     </div>
-    
 
+    <!-- Modal para solicitar cambio de DNI -->
+    <ModalCambioDNI 
+      :mostrar="mostrarModalDNI"
+      :dniActual="paciente.dni"
+      @cerrar="cerrarModalDNI"
+      @enviar-solicitud="enviarSolicitudDNI"
+    />
   </div>
 </template>
   
 <script>
 import { db } from "@/firebase";
-import { collection, getDocs, query, where, onSnapshot, updateDoc } from "firebase/firestore";
+import { collection, getDocs, query, where, onSnapshot, updateDoc, addDoc } from "firebase/firestore";
 import SignosVitalesCharts from './commons/SignosVitalesCharts.vue';
+import PacienteInfo from './commons/PacienteInfo.vue';
+import PacienteDiagnosticos from './commons/PacienteDiagnosticos.vue';
+import PacienteHistorialMedicacion from './commons/PacienteHistorialMedicacion.vue';
+import PacienteResumen from './commons/PacienteResumen.vue';
+import PacienteRecetaMedica from './commons/PacienteRecetaMedica.vue';
+import PacienteConfiguracion from './commons/PacienteConfiguracion.vue';
+import ModalCambioDNI from './commons/ModalCambioDNI.vue';
 import { generarPDFSignosYMedicaciones } from '@/utils/helpers';
 import jsPDF from 'jspdf';
 
 export default {
   name: "HomePaciente",
-  components: { SignosVitalesCharts },
+  components: { 
+    SignosVitalesCharts,
+    PacienteInfo,
+    PacienteDiagnosticos,
+    PacienteHistorialMedicacion,
+    PacienteResumen,
+    PacienteRecetaMedica,
+    PacienteConfiguracion,
+    ModalCambioDNI
+  },
   data() {
     return {
       paciente: {
@@ -192,9 +118,7 @@ export default {
       diagnosticos: [],
       signosVitales: [],
       unsubscribe: null,
-      grupoAbierto: {},
-      paginas: {},
-      porPagina: 10,
+
       vitalParams: [
         {
           key: 'temperatura',
@@ -244,40 +168,27 @@ export default {
       ],
       graficoSeleccionado: 'todos', // 'todos' o el nombre de un parámetro vital
       parametroSeleccionado: null,
-      medicamentoPendiente: null
+      medicamentoPendiente: null,
+      // Variables para configuración
+      seccionActiva: 'informacion',
+      tabs: [
+        { id: 'informacion', label: 'Información' },
+        { id: 'configuracion', label: 'Configuración' }
+      ],
+      datosEditables: {
+        nombre: '',
+        apellido: '',
+        email: '',
+        fechaNacimiento: ''
+      },
+      mostrarModalDNI: false,
+      solicitudDNI: {
+        nuevoDNI: '',
+        motivo: ''
+      }
     };
   },
   computed: {
-    medicacionesEsteMes() {
-      const ahora = new Date();
-      const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-      
-      return this.historial.filter(item => {
-        const fechaMedicacion = new Date(item.fechaHora);
-        return fechaMedicacion >= inicioMes;
-      }).length;
-    },
-    historialAgrupado() {
-      // Agrupa el historial por mes/año
-      const grupos = {};
-      this.historial.forEach(item => {
-        const fecha = new Date(item.fechaHora);
-        if (isNaN(fecha)) return;
-        const key = fecha.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
-        if (!grupos[key]) grupos[key] = [];
-        grupos[key].push(item);
-      });
-      // Ordenar por mes/año descendente
-      return Object.fromEntries(
-        Object.entries(grupos).sort((a, b) => {
-          const [mesA, anioA] = a[0].split(' ');
-          const [mesB, anioB] = b[0].split(' ');
-          const fechaA = new Date(`${anioA}-${this.mesANumero(mesA)}-01`);
-          const fechaB = new Date(`${anioB}-${this.mesANumero(mesB)}-01`);
-          return fechaB - fechaA;
-        })
-      );
-    },
     labelsSignos() {
       return this.signosVitales.map(s => this.formatearFecha(s.fechaHora));
     },
@@ -323,6 +234,13 @@ export default {
       }
     },
 
+  },
+  watch: {
+    seccionActiva(nuevaSeccion) {
+      if (nuevaSeccion === 'configuracion') {
+        this.cargarDatosEditables();
+      }
+    }
   },
   async mounted() {
     try {
@@ -426,37 +344,7 @@ export default {
       const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
       return (meses.indexOf(mes.toLowerCase()) + 1).toString().padStart(2, '0');
     },
-    calcularEdad(fecha) {
-      if (!fecha) return '-';
-      const hoy = new Date();
-      const nacimiento = new Date(fecha);
-      let edad = hoy.getFullYear() - nacimiento.getFullYear();
-      const m = hoy.getMonth() - nacimiento.getMonth();
-      if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
-        edad--;
-      }
-      return edad;
-    },
-    toggleGrupo(key) {
-      this.$set(this.grupoAbierto, key, !this.grupoAbierto[key]);
-      if (!this.paginas[key]) this.$set(this.paginas, key, 1);
-    },
-    grupoPaginado(key) {
-      const grupo = this.historialAgrupado[key] || [];
-      const pagina = this.paginas[key] || 1;
-      const inicio = (pagina - 1) * this.porPagina;
-      return grupo.slice(inicio, inicio + this.porPagina);
-    },
-    totalPaginas(key) {
-      const grupo = this.historialAgrupado[key] || [];
-      return Math.ceil(grupo.length / this.porPagina) || 1;
-    },
-    cambiarPagina(key, delta) {
-      const nueva = (this.paginas[key] || 1) + delta;
-      if (nueva >= 1 && nueva <= this.totalPaginas(key)) {
-        this.$set(this.paginas, key, nueva);
-      }
-    },
+
     seleccionarGrafico(key) {
       this.graficoSeleccionado = key;
       if (key !== 'todos') {
@@ -655,7 +543,123 @@ export default {
       doc.save(`receta_individual_${medicamento.nombre || 'medicamento'}.pdf`);
     },
     
-
+    // Métodos para configuración
+    cargarDatosEditables() {
+      this.datosEditables = {
+        nombre: this.paciente.nombre || '',
+        apellido: this.paciente.apellido || '',
+        email: this.paciente.email || '',
+        fechaNacimiento: this.paciente.fechaNacimiento || ''
+      };
+    },
+    
+    async guardarDatosPersonales() {
+      try {
+        // Buscar el documento del paciente en Firestore
+        const q = query(collection(db, "pacientes"), where("nombre", "==", this.paciente.nombre));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          const docRef = querySnapshot.docs[0].ref;
+          
+          // Actualizar datos en Firestore
+          await updateDoc(docRef, {
+            nombre: this.datosEditables.nombre.trim(),
+            apellido: this.datosEditables.apellido.trim(),
+            email: this.datosEditables.email.trim(),
+            fechaNacimiento: this.datosEditables.fechaNacimiento
+          });
+          
+          // Actualizar datos locales
+          this.paciente.nombre = this.datosEditables.nombre.trim();
+          this.paciente.apellido = this.datosEditables.apellido.trim();
+          this.paciente.email = this.datosEditables.email.trim();
+          this.paciente.fechaNacimiento = this.datosEditables.fechaNacimiento;
+          
+          // Actualizar localStorage
+          localStorage.setItem('usuario', JSON.stringify(this.paciente));
+          
+          alert('✅ Datos actualizados exitosamente');
+        } else {
+          alert('❌ Error: No se encontró el paciente en la base de datos');
+        }
+      } catch (error) {
+        console.error('Error al guardar datos:', error);
+        alert('❌ Error al guardar los datos');
+      }
+    },
+    
+    cancelarEdicion() {
+      this.cargarDatosEditables();
+    },
+    
+    solicitarCambioDNI() {
+      this.mostrarModalDNI = true;
+      this.solicitudDNI = {
+        nuevoDNI: '',
+        motivo: ''
+      };
+    },
+    
+    cerrarModalDNI() {
+      this.mostrarModalDNI = false;
+      this.solicitudDNI = {
+        nuevoDNI: '',
+        motivo: ''
+      };
+    },
+    
+    calcularEdad(fechaNacimiento) {
+      if (!fechaNacimiento) return '';
+      try {
+        const fechaNac = new Date(fechaNacimiento);
+        const hoy = new Date();
+        let edad = hoy.getFullYear() - fechaNac.getFullYear();
+        const mes = hoy.getMonth() - fechaNac.getMonth();
+        if (mes < 0 || (mes === 0 && hoy.getDate() < fechaNac.getDate())) {
+          edad--;
+        }
+        return edad + ' años';
+      } catch (e) {
+        return '';
+      }
+    },
+    
+    async enviarSolicitudDNI() {
+      try {
+        // Validar que el nuevo DNI sea diferente al actual
+        if (this.solicitudDNI.nuevoDNI === this.paciente.dni) {
+          alert('❌ El nuevo DNI debe ser diferente al actual');
+          return;
+        }
+        
+        // Validar formato del DNI (8 dígitos)
+        if (!/^\d{8}$/.test(this.solicitudDNI.nuevoDNI)) {
+          alert('❌ El DNI debe tener exactamente 8 dígitos');
+          return;
+        }
+        
+        // Crear solicitud en Firestore
+        const solicitudData = {
+          pacienteId: this.paciente.id,
+          pacienteNombre: `${this.paciente.nombre} ${this.paciente.apellido}`,
+          dniActual: this.paciente.dni,
+          dniNuevo: this.solicitudDNI.nuevoDNI,
+          motivo: this.solicitudDNI.motivo.trim(),
+          fechaSolicitud: new Date().toISOString(),
+          estado: 'pendiente'
+        };
+        
+        await addDoc(collection(db, "dniChangeRequests"), solicitudData);
+        
+        alert('✅ Solicitud de cambio de DNI enviada exitosamente. El administrador la revisará.');
+        this.cerrarModalDNI();
+        
+      } catch (error) {
+        console.error('Error al enviar solicitud:', error);
+        alert('❌ Error al enviar la solicitud');
+      }
+    }
   }
 };
 </script>
@@ -756,6 +760,38 @@ export default {
 
 .btn-logout:hover {
   background: #c82333;
+}
+
+/* Estilos para pestañas */
+.paciente-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 15px 25px;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.paciente-tab {
+  background: none;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  color: #666;
+  transition: all 0.3s;
+}
+
+.paciente-tab:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.paciente-tab.active {
+  background: #007bff;
+  color: white;
 }
 
 .info-grid {
@@ -1157,6 +1193,224 @@ h2 {
   }
   .grafico-selector {
     justify-content: center;
+  }
+  
+  .paciente-tabs {
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .paciente-tab {
+    text-align: center;
+  }
+}
+
+/* Estilos para configuración */
+.configuracion-datos {
+  margin-top: 20px;
+}
+
+.configuracion-datos h3 {
+  color: #333;
+  margin-bottom: 20px;
+  font-size: 18px;
+}
+
+.form-datos-personales {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-row label {
+  font-weight: bold;
+  color: #333;
+  font-size: 14px;
+}
+
+.form-row input,
+.form-row textarea {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 16px;
+  transition: border-color 0.3s;
+}
+
+.form-row input:focus,
+.form-row textarea:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.dni-container {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.dni-disabled {
+  background: #f5f5f5;
+  color: #666;
+  cursor: not-allowed;
+  flex: 1;
+}
+
+.btn-solicitar-dni {
+  background: #ff9800;
+  color: white;
+  border: none;
+  padding: 12px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s;
+  white-space: nowrap;
+}
+
+.btn-solicitar-dni:hover {
+  background: #f57c00;
+}
+
+.form-actions {
+  display: flex;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.btn-guardar-datos {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s;
+}
+
+.btn-guardar-datos:hover {
+  background: #218838;
+}
+
+.btn-cancelar {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s;
+}
+
+.btn-cancelar:hover {
+  background: #5a6268;
+}
+
+/* Estilos para modal de DNI */
+.modal-dni-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.modal-dni {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 500px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-dni-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f8f9fa;
+}
+
+.modal-dni-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 18px;
+}
+
+.modal-dni-content {
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.modal-dni-content p {
+  color: #666;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.form-solicitud-dni {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dni-actual {
+  background: #f5f5f5;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.btn-enviar-solicitud {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s;
+}
+
+.btn-enviar-solicitud:hover {
+  background: #0056b3;
+}
+
+/* Responsive para configuración */
+@media (max-width: 768px) {
+  .dni-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .modal-dni {
+    max-width: 95vw;
+  }
+  
+  .modal-dni-content {
+    padding: 20px;
   }
 }
 </style> 
