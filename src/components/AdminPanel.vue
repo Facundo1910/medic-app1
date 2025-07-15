@@ -4,7 +4,7 @@
       <header class="header">
         <div class="logo">🔧 Panel de Administración</div>
         <div class="usuario">
-          <span class="nombre-usuario">{{ admin.nombre }}</span>
+          <span class="nombre-usuario">Dr. {{ admin.apellido }}, {{ admin.nombre }}</span>
           <button @click="logout" class="btn-logout">
             Cerrar sesión
           </button>
@@ -180,17 +180,15 @@
                   <span v-else style="color:#888;">Sin enfermera asignada</span>
                 </td>
                 <td>
-                  <div class="recetas-scroll-col">
+                  <div class="recetas-container">
                     <div v-if="pac.recetasMedicas && pac.recetasMedicas.length > 0">
-                      <div v-for="receta in pac.recetasMedicas" :key="receta.id + receta.fechaAsignacion" class="receta-item-col">
-                        <span class="receta-nombre">{{ receta.nombre }}</span>
-                        <span v-if="receta.dosisRecomendada">- {{ receta.dosisRecomendada }} mg</span>
-                        <span v-if="receta.frecuencia">- {{ receta.frecuencia }}</span>
-                        <span v-if="receta.instrucciones">- {{ receta.instrucciones }}</span>
-                        <span class="receta-fecha">({{ formatearFecha(receta.fechaAsignacion) }})</span>
-                      </div>
+                      <!-- Botón para abrir modal de recetas -->
+                      <button class="btn-ver-recetas" @click="abrirModalRecetas(pac)">
+                        <span class="recetas-contador">{{ pac.recetasMedicas.length }} receta{{ pac.recetasMedicas.length > 1 ? 's' : '' }}</span>
+                        <span class="icono-ver">👁️</span>
+                      </button>
                     </div>
-                    <div v-else style="color:#888; font-size:13px; margin-top:4px;">Sin recetas médicas</div>
+                    <div v-else class="sin-recetas">Sin recetas médicas</div>
                   </div>
                 </td>
                 <td>
@@ -395,6 +393,47 @@
         </div>
       </div>
     </div>
+    <!-- Modal de recetas médicas -->
+    <div v-if="mostrarModalRecetas" class="modal-recetas-overlay" @click="cerrarModalRecetas">
+      <div class="modal-recetas" @click.stop>
+        <div class="modal-recetas-header">
+          <h3>📋 Recetas Médicas - {{ pacienteSeleccionado?.nombre }} {{ pacienteSeleccionado?.apellido }}</h3>
+          <button @click="cerrarModalRecetas" class="btn-cerrar-modal">✕</button>
+        </div>
+        
+        <div class="modal-recetas-content">
+          <div v-if="recetasPorFecha.length === 0" class="sin-recetas-modal">
+            <p>No hay recetas médicas registradas</p>
+          </div>
+          
+          <div v-else class="recetas-por-fecha">
+            <div v-for="grupo in recetasPorFecha" :key="grupo.fecha" class="grupo-fecha">
+              <h4 class="fecha-grupo">{{ grupo.fechaFormateada }}</h4>
+              <div class="recetas-del-dia">
+                <div v-for="receta in grupo.recetas" :key="receta.id + receta.fechaAsignacion" class="receta-modal-item">
+                  <div class="receta-modal-header">
+                    <strong class="receta-nombre">{{ receta.nombre }}</strong>
+                    <span class="receta-hora">{{ formatearHora(receta.fechaAsignacion) }}</span>
+                  </div>
+                  <div class="receta-modal-info">
+                    <span v-if="receta.dosisRecomendada" class="receta-dosis-modal">{{ receta.dosisRecomendada }} mg</span>
+                    <span v-if="receta.frecuencia" class="receta-frecuencia-modal">{{ receta.frecuencia }}</span>
+                    <span v-if="receta.instrucciones" class="receta-instrucciones-modal">{{ receta.instrucciones }}</span>
+                  </div>
+                  <div v-if="receta.diagnosticos && receta.diagnosticos.length > 0" class="receta-diagnosticos">
+                    <strong>Diagnósticos:</strong>
+                    <span v-for="(diag, idx) in receta.diagnosticos" :key="idx" class="diagnostico-tag">
+                      {{ diag }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Render oculto del gráfico para PDF -->
     <div ref="graficoPDF" style="position: absolute; left: -9999px; top: 0;">
       <SignosVitalesCharts
@@ -468,6 +507,11 @@ export default {
       ],
       nuevoDiagnostico: [],
       diagnosticoError: false,
+      recetasExpandidas: {},
+      // Variables para modal de recetas
+      mostrarModalRecetas: false,
+      pacienteSeleccionado: null,
+      recetasPorFecha: [],
     };
   },
   computed: {
@@ -965,6 +1009,65 @@ export default {
     seleccionarSugerenciaCIMA(nombre) {
       this.nuevoMedicamento.nombre = nombre;
       this.sugerenciasCIMA = [];
+    },
+    
+    toggleRecetas(pacienteId) {
+      this.$set(this.recetasExpandidas, pacienteId, !this.recetasExpandidas[pacienteId]);
+    },
+    
+    abrirModalRecetas(paciente) {
+      this.pacienteSeleccionado = paciente;
+      this.organizarRecetasPorFecha(paciente.recetasMedicas || []);
+      this.mostrarModalRecetas = true;
+    },
+    
+    cerrarModalRecetas() {
+      this.mostrarModalRecetas = false;
+      this.pacienteSeleccionado = null;
+      this.recetasPorFecha = [];
+    },
+    
+    organizarRecetasPorFecha(recetas) {
+      const grupos = {};
+      
+      recetas.forEach(receta => {
+        const fecha = new Date(receta.fechaAsignacion);
+        const fechaKey = fecha.toISOString().split('T')[0]; // YYYY-MM-DD
+        
+        if (!grupos[fechaKey]) {
+          grupos[fechaKey] = {
+            fecha: fechaKey,
+            fechaFormateada: fecha.toLocaleDateString('es-ES', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            }),
+            recetas: []
+          };
+        }
+        
+        grupos[fechaKey].recetas.push(receta);
+      });
+      
+      // Ordenar por fecha (más reciente primero) y dentro de cada fecha por hora
+      this.recetasPorFecha = Object.values(grupos)
+        .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+        .map(grupo => ({
+          ...grupo,
+          recetas: grupo.recetas.sort((a, b) => 
+            new Date(b.fechaAsignacion) - new Date(a.fechaAsignacion)
+          )
+        }));
+    },
+    
+    formatearHora(fechaString) {
+      if (!fechaString) return '';
+      const fecha = new Date(fechaString);
+      return fecha.toLocaleTimeString('es-ES', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
     }
   }
 };
@@ -996,6 +1099,7 @@ export default {
   border-radius: 10px;
   margin-bottom: 20px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  min-height: 60px;
 }
 
 .logo {
@@ -1008,11 +1112,17 @@ export default {
   display: flex;
   align-items: center;
   gap: 15px;
+  flex-shrink: 0;
 }
 
 .nombre-usuario {
   font-weight: bold;
   color: #333;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  margin-top: 17px;
 }
 
 .btn-logout {
@@ -1023,6 +1133,9 @@ export default {
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.3s;
+  display: flex;
+  align-items: center;
+  height: fit-content;
 }
 
 .btn-logout:hover {
@@ -1602,30 +1715,106 @@ export default {
 .btn-receta-prueba:hover {
   background: #e65100;
 }
-.recetas-scroll-col {
-  max-height: 90px;
-  overflow-y: auto;
-  background: #fff;
-  border: 1px solid #e0e0e0;
+.recetas-container {
+  min-width: 200px;
+}
+
+.recetas-resumen {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
   border-radius: 6px;
-  padding: 4px 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 14px;
 }
-.receta-item-col {
-  padding: 2px 0;
-  border-bottom: 1px solid #f0f0f0;
-  font-size: 13px;
+
+.recetas-resumen:hover {
+  background: #e9ecef;
 }
-.receta-item-col:last-child {
-  border-bottom: none;
-}
-.receta-nombre {
+
+.recetas-contador {
   font-weight: bold;
   color: #2d4fff;
 }
-.receta-fecha {
+
+.recetas-toggle {
+  color: #666;
+  font-size: 12px;
+}
+
+.recetas-detalle {
+  margin-top: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.receta-item-detalle {
+  padding: 10px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.receta-item-detalle:last-child {
+  border-bottom: none;
+}
+
+.receta-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.receta-header strong {
+  color: #2d4fff;
+  font-size: 13px;
+}
+
+.receta-fecha-detalle {
   color: #888;
   font-size: 11px;
-  margin-left: 6px;
+}
+
+.receta-info-detalle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.receta-dosis {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.receta-frecuencia {
+  background: #f3e5f5;
+  color: #7b1fa2;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.receta-instrucciones {
+  background: #fff3e0;
+  color: #f57c00;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.sin-recetas {
+  color: #888;
+  font-size: 13px;
+  font-style: italic;
+  text-align: center;
+  padding: 8px;
 }
 .sugerencias-cima-lista {
   background: white;
@@ -1727,6 +1916,259 @@ export default {
   font-size: 14px;
   margin-top: 4px;
   margin-bottom: 2px;
+}
+
+/* Estilos para el botón de ver recetas */
+.btn-ver-recetas {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.btn-ver-recetas:hover {
+  background: #e9ecef;
+  border-color: #2d4fff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(45, 79, 255, 0.1);
+}
+
+.recetas-contador {
+  font-weight: bold;
+  color: #2d4fff;
+}
+
+.icono-ver {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* Estilos para el modal de recetas */
+.modal-recetas-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.modal-recetas {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 800px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-recetas-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f8f9fa;
+}
+
+.modal-recetas-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 18px;
+}
+
+.btn-cerrar-modal {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.btn-cerrar-modal:hover {
+  background: #e0e0e0;
+}
+
+.modal-recetas-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+.sin-recetas-modal {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+  font-style: italic;
+}
+
+.recetas-por-fecha {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.grupo-fecha {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.fecha-grupo {
+  background: #f8f9fa;
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 1px solid #e0e0e0;
+  text-transform: capitalize;
+}
+
+.recetas-del-dia {
+  background: white;
+}
+
+.receta-modal-item {
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.2s;
+}
+
+.receta-modal-item:last-child {
+  border-bottom: none;
+}
+
+.receta-modal-item:hover {
+  background: #f8f9fa;
+}
+
+.receta-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.receta-nombre {
+  color: #2d4fff;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.receta-hora {
+  color: #666;
+  font-size: 14px;
+  background: #f0f0f0;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.receta-modal-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.receta-dosis-modal {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.receta-frecuencia-modal {
+  background: #f3e5f5;
+  color: #7b1fa2;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.receta-instrucciones-modal {
+  background: #fff3e0;
+  color: #f57c00;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.receta-diagnosticos {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.receta-diagnosticos strong {
+  color: #333;
+  font-size: 13px;
+  margin-right: 8px;
+}
+
+.diagnostico-tag {
+  display: inline-block;
+  background: #e8f5e8;
+  color: #2e7d32;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin: 2px 4px 2px 0;
+}
+
+/* Responsive para el modal */
+@media (max-width: 768px) {
+  .modal-recetas {
+    max-width: 95vw;
+    max-height: 90vh;
+  }
+  
+  .modal-recetas-header {
+    padding: 16px 20px;
+  }
+  
+  .modal-recetas-header h3 {
+    font-size: 16px;
+  }
+  
+  .modal-recetas-content {
+    padding: 16px 20px;
+  }
+  
+  .receta-modal-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .receta-modal-info {
+    flex-direction: column;
+    gap: 4px;
+  }
 }
 </style>
 
