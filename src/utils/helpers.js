@@ -178,7 +178,7 @@ export async function generarPDFSignosYMedicaciones(chartElement, medicaciones, 
     doc.addImage(imgData, 'PNG', 14, 45, 180, 60);
   }
 
-  // Tabla de medicaciones
+  // Tabla de medicaciones con ajuste de texto
   let y = 110;
   doc.setFontSize(14);
   doc.text('Historial de Medicaciones', 14, y);
@@ -190,16 +190,28 @@ export async function generarPDFSignosYMedicaciones(chartElement, medicaciones, 
   doc.text('Dosis', 70, y + 6);
   doc.text('Fecha y hora', 110, y + 6);
   y += 10;
+  const maxWidthMedicamento = 80;
+  const maxWidthDosis = 20;
+  const maxWidthFecha = 50;
   medicaciones.slice(0, 30).forEach(med => {
-    doc.text(med.medicamento || '-', 16, y);
-    doc.text((med.dosis ? med.dosis + ' mg' : '-'), 70, y);
-    doc.text(med.fechaHora ? new Date(med.fechaHora).toLocaleString('es-ES') : '-', 110, y);
-    y += 8;
-    if (y > 270) {
-      doc.addPage();
-      y = 20;
+    // Wrap manual para cada campo
+    const medicamentoLines = doc.splitTextToSize(med.medicamento || '-', maxWidthMedicamento);
+    const dosisLines = doc.splitTextToSize((med.dosis ? med.dosis + ' mg' : '-'), maxWidthDosis);
+    const fechaLines = doc.splitTextToSize(med.fechaHora ? new Date(med.fechaHora).toLocaleString('es-ES') : '-', maxWidthFecha);
+    const maxLines = Math.max(medicamentoLines.length, dosisLines.length, fechaLines.length);
+    // Escribir todas las líneas de la fila, alineadas
+    for (let i = 0; i < maxLines; i++) {
+      doc.text(medicamentoLines[i] || '', 16, y);
+      doc.text(dosisLines[i] || '', 70, y);
+      doc.text(fechaLines[i] || '', 110, y);
+      y += 6;
+      if (y > 270) {
+        doc.addPage();
+        y = 20;
+      }
     }
   });
-
-  return doc.output('blob');
+  return new Promise(resolve => {
+    resolve(doc.output('blob'));
+  });
 } 

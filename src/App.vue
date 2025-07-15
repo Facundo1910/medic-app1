@@ -1,5 +1,6 @@
 <template>
   <div>
+    <img src="./assets/a1e7f095-a7c5-4529-a80f-9befabda94a3.png" alt="Brionia Logo" class="logo-brionia" />
     <router-view />
     <div v-if="mostrarAviso" class="modal-inactividad">
       <div class="modal-content-inactividad">
@@ -123,7 +124,7 @@ body {
   margin: 0;
   padding: 0;
   font-family: Arial, sans-serif;
-  background-image: url('./assets/fondo.png');
+  /* background-image: url('./assets/a1e7f095-a7c5-4529-a80f-9befabda94a3.png'); */
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -178,5 +179,58 @@ body {
 }
 .modal-content-inactividad button:hover {
   background: #0056b3;
+}
+
+.logo-brionia {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 150px;
+  height: auto;
+  z-index: 10000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px;
+}
+
+:root {
+  --color-principal: #17989c;
+  --color-principal-hover: #1fcfcf;
+}
+
+button,
+.modal-content-inactividad button,
+input[type="submit"],
+input[type="button"] {
+  background: #fff !important;
+  color: var(--color-principal) !important;
+  border: 2px solid var(--color-principal);
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  margin-top: 18px;
+  transition: color 0.2s, border-color 0.2s;
+  font-weight: bold;
+}
+button:hover,
+.modal-content-inactividad button:hover,
+input[type="submit"]:hover,
+input[type="button"]:hover {
+  color: var(--color-principal-hover) !important;
+  border-color: var(--color-principal-hover);
+  background: #fff !important;
+}
+.btn-principal {
+  background: var(--color-principal) !important;
+  color: #fff !important;
+  border: 2px solid var(--color-principal);
+  font-weight: bold;
+}
+.btn-principal:hover {
+  background: var(--color-principal-hover) !important;
+  color: #fff !important;
+  border-color: var(--color-principal-hover);
 }
 </style>

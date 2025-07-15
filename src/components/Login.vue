@@ -47,7 +47,7 @@
             {{ mostrarClave ? '🙈' : '👁️' }}
           </span>
         </div>
-        <button type="submit">Ingresar</button>
+        <button type="submit" class="btn-principal">Ingresar</button>
       </form>
       <p v-if="error" class="error">{{ error }}</p>
       <div class="links-secundarios">
@@ -435,6 +435,24 @@ form {
   margin-bottom: 0;
   padding: 8px 12px;
   font-size: 14px;
+  border: 2px solid #17989c !important;
+  color: #17989c !important;
+  background: #fff;
+  font-weight: bold;
+  border-radius: 6px;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.rol-btn.active,
+.rol-btn:focus,
+.rol-btn:active {
+  background: #17989c !important;
+  color: #fff !important;
+  border-color: #17989c !important;
+}
+.rol-btn:hover {
+  background: #1fcfcf !important;
+  color: #fff !important;
+  border-color: #1fcfcf !important;
 }
 label {
   margin-bottom: 6px;

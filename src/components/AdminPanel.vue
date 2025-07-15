@@ -11,176 +11,397 @@
         </div>
       </header>
 
-      <section class="solicitudes-pendientes">
-        <div class="card">
-          <h2>📋 Solicitudes de Validación de Enfermeras</h2>
-          
-          <div v-if="cargando" class="cargando">
-            <p>Cargando solicitudes...</p>
-          </div>
-          
-          <div v-else-if="solicitudes.length === 0" class="no-solicitudes">
-            <p>No hay solicitudes pendientes de validación</p>
-          </div>
-          
-          <div v-else class="solicitudes-lista">
-            <div v-for="solicitud in solicitudes" :key="solicitud.id" class="solicitud-item">
-              <div class="solicitud-info">
-                <h3>{{ solicitud.nombre }}</h3>
-                <div class="info-grid">
-                  <div class="info-item">
-                    <label>Email:</label>
-                    <span>{{ solicitud.email }}</span>
+      <!-- Menú de pestañas -->
+      <nav class="admin-tabs">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          :class="['admin-tab', { active: seccionActiva === tab.id }]"
+          @click="seccionActiva = tab.id"
+        >
+          {{ tab.label }}
+        </button>
+      </nav>
+
+      <!-- Sección Pacientes -->
+      <section v-if="seccionActiva === 'pacientes'">
+        <section class="gestion-medicamentos">
+          <div class="card">
+            <h2>💊 Receta Médica</h2>
+            <div class="medicamentos-container">
+              <!-- Formulario para agregar medicamento -->
+              <div class="formulario-medicamento">
+                <h3>Agregar Nuevo Medicamento</h3>
+                <form @submit.prevent="agregarMedicamento">
+                  <div class="form-row">
+                    <label>Diagnóstico (obligatorio):</label>
+                    <DiagnosticoSelector :diagnosticos.sync="nuevoDiagnostico" />
+                    <span v-if="diagnosticoError" class="error-msg">El diagnóstico es obligatorio.</span>
                   </div>
-                  <div class="info-item">
-                    <label>Año de nacimiento:</label>
-                    <span>{{ solicitud.anioNacimiento }}</span>
+                  <div class="form-row" style="position: relative;">
+                    <label>Nombre del medicamento:</label>
+                    <input 
+                      v-model="nuevoMedicamento.nombre" 
+                      type="text" 
+                      required 
+                      placeholder="Ej: Paracetamol"
+                      @input="buscarMedicamentosCIMA"
+                    />
+                    <ul v-if="sugerenciasCIMA.length" class="sugerencias-cima-lista">
+                      <li 
+                        v-for="(sug, idx) in sugerenciasCIMA" 
+                        :key="idx"
+                        @click="seleccionarSugerenciaCIMA(sug)"
+                        class="sugerencia-cima-item"
+                      >
+                        {{ sug }}
+                      </li>
+                    </ul>
                   </div>
-                  <div class="info-item">
-                    <label>Fecha de solicitud:</label>
-                    <span>{{ formatearFecha(solicitud.fechaSolicitud) }}</span>
+                  <div class="form-row">
+                    <label>Descripción:</label>
+                    <textarea 
+                      v-model="nuevoMedicamento.descripcion" 
+                      placeholder="Descripción del medicamento..."
+                      rows="3"
+                    ></textarea>
                   </div>
-                  <div class="info-item">
-                    <label>Estado:</label>
-                    <span :class="getEstadoClass(solicitud.estado)">{{ solicitud.estado }}</span>
+                  <div class="form-row">
+                    <label>Dosis recomendada (mg):</label>
+                    <input 
+                      v-model="nuevoMedicamento.dosisRecomendada" 
+                      type="number" 
+                      min="1"
+                      placeholder="Ej: 500"
+                    />
+                  </div>
+                  <div class="form-row">
+                    <label>Frecuencia de administración:</label>
+                    <select v-model="nuevoMedicamento.frecuencia">
+                      <option value="">Seleccionar frecuencia</option>
+                      <option value="cada 4 horas">Cada 4 horas</option>
+                      <option value="cada 6 horas">Cada 6 horas</option>
+                      <option value="cada 8 horas">Cada 8 horas</option>
+                      <option value="cada 12 horas">Cada 12 horas</option>
+                      <option value="una vez al día">Una vez al día</option>
+                      <option value="dos veces al día">Dos veces al día</option>
+                      <option value="tres veces al día">Tres veces al día</option>
+                      <option value="según necesidad">Según necesidad</option>
+                    </select>
+                  </div>
+                  <div class="form-row">
+                    <label>Instrucciones especiales:</label>
+                    <textarea 
+                      v-model="nuevoMedicamento.instrucciones" 
+                      placeholder="Instrucciones especiales para la administración..."
+                      rows="2"
+                    ></textarea>
+                  </div>
+                  <div class="form-row">
+                    <label>Asignar a paciente(s):</label>
+                    <multiselect
+                      v-model="pacientesParaNuevoMedicamento"
+                      :options="pacientes"
+                      :multiple="true"
+                      :close-on-select="false"
+                      :clear-on-select="false"
+                      :preserve-search="true"
+                      :custom-label="customLabelPaciente"
+                      placeholder="Buscar y seleccionar pacientes..."
+                      label="nombre"
+                      track-by="id"
+                      :max-height="250"
+                    />
+                  </div>
+                  <button type="submit" class="btn-agregar-medicamento">➕ Agregar Medicamento</button>
+                </form>
+              </div>
+
+              <!-- Lista de medicamentos -->
+              <div class="lista-medicamentos">
+                <h3>Medicamentos Disponibles</h3>
+                <div v-if="cargandoMedicamentos" class="cargando">
+                  <p>Cargando medicamentos...</p>
+                </div>
+                <div v-else-if="medicamentos.length === 0" class="no-medicamentos">
+                  <p>No hay medicamentos registrados</p>
+                </div>
+                <div v-else class="medicamentos-grid medicamentos-scroll">
+                  <div v-for="medicamento in medicamentos" :key="medicamento.id" class="medicamento-card">
+                    <div class="medicamento-header">
+                      <h4>{{ medicamento.nombre }}</h4>
+                      <button 
+                        @click="eliminarMedicamento(medicamento.id)" 
+                        class="btn-eliminar-medicamento"
+                        title="Eliminar medicamento"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                    <div class="medicamento-info">
+                      <p v-if="medicamento.descripcion"><strong>Descripción:</strong> {{ medicamento.descripcion }}</p>
+                      <p v-if="medicamento.dosisRecomendada"><strong>Dosis:</strong> {{ medicamento.dosisRecomendada }} mg</p>
+                      <p v-if="medicamento.frecuencia"><strong>Frecuencia:</strong> {{ medicamento.frecuencia }}</p>
+                      <p v-if="medicamento.instrucciones"><strong>Instrucciones:</strong> {{ medicamento.instrucciones }}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-              
-              <div v-if="solicitud.estado === 'pendiente'" class="acciones">
-                <div class="accion-grupo">
-                  <label for="mensaje-aprobacion">Mensaje (opcional):</label>
-                  <textarea 
-                    v-model="mensajes[solicitud.id]" 
-                    id="mensaje-aprobacion"
-                    placeholder="Mensaje personalizado para la enfermera..."
-                    rows="2"
-                  ></textarea>
-                </div>
-                
-                <div class="botones-accion">
-                  <button 
-                    @click="aprobarEnfermera(solicitud.id, mensajes[solicitud.id])"
-                    :disabled="procesando[solicitud.id]"
-                    class="btn-aprobar"
-                  >
-                    {{ procesando[solicitud.id] ? 'Aprobando...' : '✅ Aprobar' }}
-                  </button>
-                  
-                  <button 
-                    @click="rechazarEnfermera(solicitud.id, mensajes[solicitud.id])"
-                    :disabled="procesando[solicitud.id]"
-                    class="btn-rechazar"
-                  >
-                    {{ procesando[solicitud.id] ? 'Rechazando...' : '❌ Rechazar' }}
-                  </button>
-                </div>
-              </div>
-              
-              <div v-else-if="solicitud.estado === 'aprobado'" class="estado-finalizado">
-                <p class="aprobado">✅ Cuenta aprobada el {{ formatearFecha(solicitud.fechaAprobacion) }}</p>
-                <p v-if="solicitud.mensaje" class="mensaje-admin">Mensaje: {{ solicitud.mensaje }}</p>
-              </div>
-              
-              <div v-else-if="solicitud.estado === 'rechazado'" class="estado-finalizado">
-                <p class="rechazado">❌ Cuenta rechazada el {{ formatearFecha(solicitud.fechaRechazo) }}</p>
-                <p v-if="solicitud.motivoRechazo" class="mensaje-admin">Motivo: {{ solicitud.motivoRechazo }}</p>
               </div>
             </div>
           </div>
-        </div>
+        </section>
+        <!-- Tabla de pacientes al final -->
+        <section class="tabla-pacientes card">
+          <h2>📋 Reportes de Pacientes</h2>
+          <input v-model="busquedaPaciente" placeholder="Buscar paciente por nombre, apellido o email..." class="input-busqueda-paciente" />
+          <!-- Tabla solo en desktop -->
+          <table class="tabla-pacientes-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>DNI</th>
+                <th>Email</th>
+                <th>Enfermera(s) asignada(s)</th>
+                <th>Recetas médicas</th>
+                <th>Reporte</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="pac in pacientesFiltrados" :key="pac.id">
+                <td>{{ pac.nombre }} {{ pac.apellido }}</td>
+                <td>{{ pac.dni }}</td>
+                <td>{{ pac.email }}</td>
+                <td>
+                  <span v-if="pac.enfermeras && pac.enfermeras.length">
+                    <span v-for="(enf, idx) in pac.enfermeras" :key="enf.id">
+                      {{ enf.nombre }} {{ enf.apellido }}<span v-if="idx < pac.enfermeras.length - 1">, </span>
+                    </span>
+                  </span>
+                  <span v-else style="color:#888;">Sin enfermera asignada</span>
+                </td>
+                <td>
+                  <div class="recetas-scroll-col">
+                    <div v-if="pac.recetasMedicas && pac.recetasMedicas.length > 0">
+                      <div v-for="receta in pac.recetasMedicas" :key="receta.id + receta.fechaAsignacion" class="receta-item-col">
+                        <span class="receta-nombre">{{ receta.nombre }}</span>
+                        <span v-if="receta.dosisRecomendada">- {{ receta.dosisRecomendada }} mg</span>
+                        <span v-if="receta.frecuencia">- {{ receta.frecuencia }}</span>
+                        <span v-if="receta.instrucciones">- {{ receta.instrucciones }}</span>
+                        <span class="receta-fecha">({{ formatearFecha(receta.fechaAsignacion) }})</span>
+                      </div>
+                    </div>
+                    <div v-else style="color:#888; font-size:13px; margin-top:4px;">Sin recetas médicas</div>
+                  </div>
+                </td>
+                <td>
+                  <button @click="descargarReportePaciente(pac)" class="btn-reporte-paciente">
+                    <span class="icono-reporte">📄</span> Reporte
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <!-- Cards solo en mobile -->
+          <div class="paciente-card-mobile" v-for="pac in pacientesFiltrados" :key="pac.id">
+            <div><strong>Nombre:</strong> {{ pac.nombre }} {{ pac.apellido }}</div>
+            <div><strong>Email:</strong> {{ pac.email }}</div>
+            <div><strong>Año de nacimiento:</strong> {{ pac.anioNacimiento || (pac.fechaNacimiento ? pac.fechaNacimiento.slice(0,4) : '') }}</div>
+            <div><strong>Enfermera(s):</strong>
+              <span v-if="pac.enfermeras && pac.enfermeras.length">
+                <span v-for="(enf, idx) in pac.enfermeras" :key="enf.id">
+                  {{ enf.nombre }}<span v-if="idx < pac.enfermeras.length - 1">, </span>
+                </span>
+              </span>
+              <span v-else>Sin enfermera asignada</span>
+            </div>
+            <button @click="descargarReportePaciente(pac)" class="btn-reporte-paciente" style="margin-top:8px;">
+              <span class="icono-reporte">📄</span> Reporte
+            </button>
+          </div>
+        </section>
       </section>
 
-      <section class="asignacion-pacientes">
-        <div class="card">
-          <h2>👩‍⚕️ Asignar Pacientes a Enfermeras</h2>
-          <div v-if="cargandoAsignacion">Cargando enfermeras y pacientes...</div>
-          <div v-else>
-            <label for="enfermeraSelect">Selecciona una enfermera:</label>
-            <select v-model="enfermeraSeleccionadaId" id="enfermeraSelect">
-              <option value="">-- Selecciona --</option>
-              <option v-for="enf in enfermeras" :key="enf.id" :value="enf.id">{{ enf.nombre }} ({{ enf.email }})</option>
-            </select>
-            <div v-if="enfermeraSeleccionada">
-              <h3>Pacientes asignados:</h3>
-              <multiselect
-                v-model="pacientesAsignadosTemp"
-                :options="pacientes"
-                :multiple="true"
-                :close-on-select="false"
-                :clear-on-select="false"
-                :preserve-search="true"
-                :searchable="true"
-                :custom-label="customLabelPaciente"
-                placeholder="Buscar y seleccionar pacientes..."
-                label="nombre"
-                track-by="id"
-                :max-height="250"
-              />
-              <button @click="guardarAsignacion" class="btn-guardar-asignacion">Guardar asignación</button>
-              <span v-if="asignacionGuardada" class="asignacion-ok">¡Asignación guardada!</span>
+      <!-- Sección Enfermeras -->
+      <section v-if="seccionActiva === 'enfermeras'">
+        <section class="solicitudes-pendientes">
+          <div class="card">
+            <h2>📋 Solicitudes de Validación de Enfermeras</h2>
+            
+            <div v-if="cargando" class="cargando">
+              <p>Cargando solicitudes...</p>
+            </div>
+            
+            <div v-else-if="solicitudes.length === 0" class="no-solicitudes">
+              <p>No hay solicitudes pendientes de validación</p>
+            </div>
+            
+            <div v-else class="solicitudes-lista">
+              <div v-for="solicitud in solicitudes" :key="solicitud.id" class="solicitud-item">
+                <div class="solicitud-info">
+                  <h3>{{ solicitud.nombre }}</h3>
+                  <div class="info-grid">
+                    <div class="info-item">
+                      <label>Email:</label>
+                      <span>{{ solicitud.email }}</span>
+                    </div>
+                    <div class="info-item">
+                      <label>Año de nacimiento:</label>
+                      <span>{{ solicitud.anioNacimiento }}</span>
+                    </div>
+                    <div class="info-item">
+                      <label>Fecha de solicitud:</label>
+                      <span>{{ formatearFecha(solicitud.fechaSolicitud) }}</span>
+                    </div>
+                    <div class="info-item">
+                      <label>Estado:</label>
+                      <span :class="getEstadoClass(solicitud.estado)">{{ solicitud.estado }}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div v-if="solicitud.estado === 'pendiente'" class="acciones">
+                  <div class="accion-grupo">
+                    <label for="mensaje-aprobacion">Mensaje (opcional):</label>
+                    <textarea 
+                      v-model="mensajes[solicitud.id]" 
+                      id="mensaje-aprobacion"
+                      placeholder="Mensaje personalizado para la enfermera..."
+                      rows="2"
+                    ></textarea>
+                  </div>
+                  
+                  <div class="botones-accion">
+                    <button 
+                      @click="aprobarEnfermera(solicitud.id, mensajes[solicitud.id])"
+                      :disabled="procesando[solicitud.id]"
+                      class="btn-aprobar"
+                    >
+                      {{ procesando[solicitud.id] ? 'Aprobando...' : '✅ Aprobar' }}
+                    </button>
+                    
+                    <button 
+                      @click="rechazarEnfermera(solicitud.id, mensajes[solicitud.id])"
+                      :disabled="procesando[solicitud.id]"
+                      class="btn-rechazar"
+                    >
+                      {{ procesando[solicitud.id] ? 'Rechazando...' : '❌ Rechazar' }}
+                    </button>
+                  </div>
+                </div>
+                
+                <div v-else-if="solicitud.estado === 'aprobado'" class="estado-finalizado">
+                  <p class="aprobado">✅ Cuenta aprobada el {{ formatearFecha(solicitud.fechaAprobacion) }}</p>
+                  <p v-if="solicitud.mensaje" class="mensaje-admin">Mensaje: {{ solicitud.mensaje }}</p>
+                </div>
+                
+                <div v-else-if="solicitud.estado === 'rechazado'" class="estado-finalizado">
+                  <p class="rechazado">❌ Cuenta rechazada el {{ formatearFecha(solicitud.fechaRechazo) }}</p>
+                  <p v-if="solicitud.motivoRechazo" class="mensaje-admin">Motivo: {{ solicitud.motivoRechazo }}</p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
-      <section class="tabla-pacientes card">
-        <h2>📋 Reportes de Pacientes</h2>
-        <input v-model="busquedaPaciente" placeholder="Buscar paciente por nombre, apellido o email..." class="input-busqueda-paciente" />
-        <!-- Tabla solo en desktop -->
-        <table class="tabla-pacientes-table">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Email</th>
-              <th>Enfermera(s) asignada(s)</th>
-              <th>Reporte</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="pac in pacientesFiltrados" :key="pac.id">
-              <td>{{ pac.nombre }} {{ pac.apellido }}</td>
-              <td>{{ pac.email }}</td>
-              <td>
-                <span v-if="pac.enfermeras && pac.enfermeras.length">
-                  <span v-for="(enf, idx) in pac.enfermeras" :key="enf.id">
-                    {{ enf.nombre }}<span v-if="idx < pac.enfermeras.length - 1">, </span>
-                  </span>
-                </span>
-                <span v-else style="color:#888;">Sin enfermera asignada</span>
-              </td>
-              <td>
-                <button @click="descargarReportePaciente(pac)" class="btn-reporte-paciente">
-                  <span class="icono-reporte">📄</span> Reporte
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <!-- Cards solo en mobile -->
-        <div class="paciente-card-mobile" v-for="pac in pacientesFiltrados" :key="pac.id">
-          <div><strong>Nombre:</strong> {{ pac.nombre }} {{ pac.apellido }}</div>
-          <div><strong>Email:</strong> {{ pac.email }}</div>
-          <div><strong>Enfermera(s):</strong>
-            <span v-if="pac.enfermeras && pac.enfermeras.length">
-              <span v-for="(enf, idx) in pac.enfermeras" :key="enf.id">
-                {{ enf.nombre }}<span v-if="idx < pac.enfermeras.length - 1">, </span>
-              </span>
-            </span>
-            <span v-else>Sin enfermera asignada</span>
+        </section>
+
+        <section class="asignacion-pacientes">
+          <div class="card">
+            <h2>👩‍⚕️ Asignar Pacientes a Enfermeras</h2>
+            <div v-if="cargandoAsignacion">Cargando enfermeras y pacientes...</div>
+            <div v-else>
+              <label for="enfermeraSelect">Selecciona una enfermera:</label>
+              <multiselect
+                v-model="enfermeraSeleccionada"
+                :options="enfermeras"
+                :custom-label="customLabelEnfermera"
+                placeholder="Buscar enfermera por nombre, apellido o DNI..."
+                label="nombre"
+                track-by="id"
+                :searchable="true"
+                :close-on-select="true"
+                :allow-empty="true"
+                id="enfermeraSelect"
+              />
+              <div v-if="enfermeraSeleccionada">
+                <h3>Pacientes asignados:</h3>
+                <multiselect
+                  v-model="pacientesAsignadosTemp"
+                  :options="pacientes"
+                  :multiple="true"
+                  :close-on-select="false"
+                  :clear-on-select="false"
+                  :preserve-search="true"
+                  :searchable="true"
+                  :custom-label="customLabelPaciente"
+                  placeholder="Buscar y seleccionar pacientes..."
+                  label="nombre"
+                  track-by="id"
+                  :max-height="250"
+                />
+                <button @click="guardarAsignacion" class="btn-guardar-asignacion">Guardar asignación</button>
+                <span v-if="asignacionGuardada" class="asignacion-ok">¡Asignación guardada!</span>
+              </div>
+            </div>
           </div>
-          <button @click="descargarReportePaciente(pac)" class="btn-reporte-paciente" style="margin-top:8px;">
-            <span class="icono-reporte">📄</span> Reporte
-          </button>
-        </div>
+        </section>
+        <!-- Tabla de enfermeras al final -->
+        <section class="tabla-enfermeras card">
+          <h2>👩‍⚕️ Enfermeras Registradas</h2>
+          <table class="tabla-enfermeras-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Apellido</th>
+                <th>Email</th>
+                <th>DNI</th>
+                <th>Año de nacimiento</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="enf in enfermeras" :key="enf.id">
+                <td>{{ enf.nombre }}</td>
+                <td>{{ enf.apellido }}</td>
+                <td>{{ enf.email }}</td>
+                <td>{{ enf.dni }}</td>
+                <td>{{ enf.anioNacimiento || (enf.fechaNacimiento ? enf.fechaNacimiento.slice(0,4) : '') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
       </section>
-      <!-- Render oculto del gráfico para PDF -->
-      <div ref="graficoPDF" style="position: absolute; left: -9999px; top: 0;">
-        <SignosVitalesCharts
-          v-if="pacienteParaReporte && pacienteParaReporte.signosVitales && pacienteParaReporte.signosVitales.length"
-          :signosVitales="pacienteParaReporte.signosVitales"
-          :titulo="'Signos Vitales de ' + pacienteParaReporte.nombre"
-        />
+
+      <!-- Modal de asignación de medicamento a paciente -->
+      <div v-if="mostrarModalAsignar" class="modal-asignar-overlay">
+        <div class="modal-asignar">
+          <h3>Asignar medicamento a paciente</h3>
+          <p><strong>Medicamento:</strong> {{ medicamentoAAsignar?.nombre }}</p>
+          <label>Selecciona paciente(s):</label>
+          <multiselect
+            v-model="pacientesSeleccionados"
+            :options="pacientes"
+            :multiple="true"
+            :close-on-select="false"
+            :clear-on-select="false"
+            :preserve-search="true"
+            :custom-label="customLabelPaciente"
+            placeholder="Buscar y seleccionar pacientes..."
+            label="nombre"
+            track-by="id"
+            :max-height="250"
+          />
+          <div class="modal-asignar-actions">
+            <button @click="asignarMedicamentoAPacientes" class="btn-confirmar-asignacion">Asignar</button>
+            <button @click="cerrarModalAsignar" class="btn-cancelar-asignacion">Cancelar</button>
+          </div>
+        </div>
       </div>
+    </div>
+    <!-- Render oculto del gráfico para PDF -->
+    <div ref="graficoPDF" style="position: absolute; left: -9999px; top: 0;">
+      <SignosVitalesCharts
+        v-if="pacienteParaReporte && pacienteParaReporte.signosVitales && pacienteParaReporte.signosVitales.length"
+        :signosVitales="pacienteParaReporte.signosVitales"
+        :titulo="'Signos Vitales de ' + pacienteParaReporte.nombre"
+      />
     </div>
   </div>
 </template>
@@ -189,17 +410,20 @@
 import { db } from "@/firebase";
 import { collection, getDocs, query, orderBy, doc, updateDoc } from "firebase/firestore";
 import { approveNurseAccount, rejectNurseAccount } from "@/services/nurseValidationService";
+import { getMedicamentos, addMedicamento, deleteMedicamento } from "@/services/medicamentoService";
 // Importar vue-multiselect
 import Multiselect from 'vue-multiselect';
 import 'vue-multiselect/dist/vue-multiselect.min.css';
 import { generarPDFSignosYMedicaciones } from '../utils/helpers';
 import SignosVitalesCharts from "@/components/commons/SignosVitalesCharts.vue";
+import DiagnosticoSelector from './commons/DiagnosticoSelector.vue';
 
 export default {
   name: "AdminPanel",
   components: {
     Multiselect,
-    SignosVitalesCharts
+    SignosVitalesCharts,
+    DiagnosticoSelector
   },
   data() {
     return {
@@ -217,32 +441,51 @@ export default {
         { id: '3', nombre: 'Carlos', apellido: 'López', dni: '789' }
       ],
       cargandoAsignacion: true,
-      enfermeraSeleccionadaId: "",
+      enfermeraSeleccionada: null,
       pacientesAsignadosTemp: [],
       asignacionGuardada: false,
       busquedaPaciente: '',
       pacienteParaReporte: null,
+      // Variables para gestión de medicamentos
+      medicamentos: [],
+      cargandoMedicamentos: true,
+      nuevoMedicamento: {
+        nombre: '',
+        descripcion: '',
+        dosisRecomendada: '',
+        frecuencia: '',
+        instrucciones: ''
+      },
+      mostrarModalAsignar: false,
+      medicamentoAAsignar: null,
+      pacientesSeleccionados: [],
+      pacientesParaNuevoMedicamento: [],
+      sugerenciasCIMA: [],
+      seccionActiva: 'pacientes',
+      tabs: [
+        { id: 'pacientes', label: 'Pacientes' },
+        { id: 'enfermeras', label: 'Enfermeras' }
+      ],
+      nuevoDiagnostico: [],
+      diagnosticoError: false,
     };
   },
   computed: {
-    enfermeraSeleccionada() {
-      return this.enfermeras.find(e => e.id === this.enfermeraSeleccionadaId) || null;
-    },
+    // enfermeraSeleccionada ahora es el objeto seleccionado directamente
     pacientesFiltrados() {
       if (!this.pacientes || !this.busquedaPaciente) return this.pacientes;
       const q = this.busquedaPaciente.toLowerCase();
       return this.pacientes.filter(pac =>
-        (pac.nombre && pac.nombre.toLowerCase().includes(q)) ||
-        (pac.apellido && pac.apellido.toLowerCase().includes(q)) ||
+        pac.nombre.toLowerCase().includes(q) ||
+        pac.apellido.toLowerCase().includes(q) ||
         (pac.email && pac.email.toLowerCase().includes(q))
       );
     }
   },
   watch: {
-    enfermeraSeleccionadaId(newId) {
-      const enf = this.enfermeras.find(e => e.id === newId);
-      this.pacientesAsignadosTemp = enf && enf.pacientesAsignados
-        ? this.pacientes.filter(p => enf.pacientesAsignados.includes(p.id))
+    enfermeraSeleccionada(newEnf) {
+      this.pacientesAsignadosTemp = newEnf && newEnf.pacientesAsignados
+        ? this.pacientes.filter(p => newEnf.pacientesAsignados.includes(p.id))
         : [];
       this.asignacionGuardada = false;
     }
@@ -269,6 +512,9 @@ export default {
 
       await this.cargarSolicitudes();
       await this.cargarEnfermerasYPacientes();
+      await this.cargarMedicamentos();
+      // Log para depuración de recetas médicas
+      console.log('Pacientes cargados:', this.pacientes);
     } catch (e) {
       console.error("Error al cargar datos:", e);
       alert("Error al cargar los datos");
@@ -380,7 +626,16 @@ export default {
         const enfermerasSnap = await getDocs(collection(db, "enfermeras"));
         this.enfermeras = enfermerasSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const pacientesSnap = await getDocs(collection(db, "pacientes"));
-        this.pacientes = pacientesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        this.pacientes = pacientesSnap.docs.map(doc => {
+          const data = { id: doc.id, ...doc.data() };
+          // Si no tiene recetasMedicas, inicializarlo en Firestore y local
+          if (!('recetasMedicas' in data)) {
+            data.recetasMedicas = [];
+            const pacienteRef = doc.ref;
+            updateDoc(pacienteRef, { recetasMedicas: [] });
+          }
+          return data;
+        });
       } catch (e) {
         alert("Error al cargar enfermeras o pacientes");
       } finally {
@@ -388,15 +643,15 @@ export default {
       }
     },
     async guardarAsignacion() {
-      if (!this.enfermeraSeleccionadaId) return;
+      if (!this.enfermeraSeleccionada) return;
       try {
         // Actualizar la enfermera con los pacientes asignados
-        const enfRef = doc(db, 'enfermeras', this.enfermeraSeleccionadaId);
+        const enfRef = doc(db, 'enfermeras', this.enfermeraSeleccionada.id);
         const pacientesIds = this.pacientesAsignadosTemp.map(p => p.id);
         await updateDoc(enfRef, { pacientesAsignados: pacientesIds });
 
         // Obtener pacientes que estaban previamente asignados a la enfermera
-        const enfermeraObj = this.enfermeras.find(e => e.id === this.enfermeraSeleccionadaId);
+        const enfermeraObj = this.enfermeras.find(e => e.id === this.enfermeraSeleccionada.id);
         const pacientesAntes = Array.isArray(enfermeraObj.pacientesAsignados) ? enfermeraObj.pacientesAsignados : [];
         const pacientesAhora = pacientesIds;
 
@@ -410,7 +665,7 @@ export default {
           const pacRef = doc(db, 'pacientes', pacienteId);
           // Obtener el paciente actual de this.pacientes
           const paciente = this.pacientes.find(p => p.id === pacienteId);
-          let nuevasEnfermeras = Array.isArray(paciente?.enfermeras) ? paciente.enfermeras.filter(e => e.id !== this.enfermeraSeleccionadaId) : [];
+          let nuevasEnfermeras = Array.isArray(paciente?.enfermeras) ? paciente.enfermeras.filter(e => e.id !== this.enfermeraSeleccionada.id) : [];
           await updateDoc(pacRef, { enfermeras: nuevasEnfermeras });
         }
 
@@ -422,7 +677,13 @@ export default {
           let nuevasEnfermeras = Array.isArray(paciente.enfermeras) ? paciente.enfermeras.slice() : [];
           // Evitar duplicados
           if (!nuevasEnfermeras.some(e => e.id === enfermeraObj.id)) {
-            nuevasEnfermeras.push({ id: enfermeraObj.id, nombre: enfermeraObj.nombre });
+            console.log('Asignando enfermera:', enfermeraObj);
+            nuevasEnfermeras.push({
+              id: enfermeraObj.id,
+              nombre: enfermeraObj.nombre,
+              apellido: enfermeraObj.apellido,
+              dni: enfermeraObj.dni
+            });
           }
           await updateDoc(pacRef, { enfermeras: nuevasEnfermeras });
         }
@@ -442,6 +703,10 @@ export default {
     },
     customLabelPaciente(p) {
       return `${p.nombre} ${p.apellido} (${p.dni})`;
+    },
+    customLabelEnfermera(enf) {
+      if (!enf) return '';
+      return `${enf.nombre} ${enf.apellido} (DNI: ${enf.dni})`;
     },
     async descargarReportePaciente(paciente) {
       this.pacienteParaReporte = paciente;
@@ -468,6 +733,239 @@ export default {
         }, 100);
       }, 800);
     },
+
+    // Métodos para gestión de medicamentos
+    async cargarMedicamentos() {
+      try {
+        this.cargandoMedicamentos = true;
+        const medicamentos = await getMedicamentos();
+        const hoy = new Date();
+        let medicamentosVigentes = [];
+        for (const med of medicamentos) {
+          const fecha = new Date(med.fechaCreacion);
+          const diffDias = (hoy - fecha) / (1000 * 60 * 60 * 24);
+          if (diffDias > 1) {
+            // Eliminar de Firestore y mover a recetasMedicas de los pacientes asignados
+            await this.archivarMedicamentoComoReceta(med);
+            await deleteMedicamento(med.id);
+          } else {
+            medicamentosVigentes.push(med);
+          }
+        }
+        this.medicamentos = medicamentosVigentes;
+      } catch (e) {
+        console.error("Error al cargar medicamentos:", e);
+        alert("Error al cargar los medicamentos");
+      } finally {
+        this.cargandoMedicamentos = false;
+      }
+    },
+
+    async archivarMedicamentoComoReceta(medicamento) {
+      // Buscar todos los pacientes a los que se asignó este medicamento
+      for (const paciente of this.pacientes) {
+        const actuales = Array.isArray(paciente.medicamentosIndicados) ? paciente.medicamentosIndicados : [];
+        const fueAsignado = actuales.find(m => m.id === medicamento.id);
+        if (fueAsignado) {
+          // Quitar de medicamentosIndicados y agregar a recetasMedicas
+          const nuevosIndicados = actuales.filter(m => m.id !== medicamento.id);
+          const recetas = Array.isArray(paciente.recetasMedicas) ? paciente.recetasMedicas : [];
+          const receta = {
+            ...fueAsignado,
+            fechaArchivado: new Date().toISOString()
+          };
+          const nuevasRecetas = [...recetas, receta];
+          const pacienteRef = doc(db, 'pacientes', paciente.id);
+          await updateDoc(pacienteRef, {
+            medicamentosIndicados: nuevosIndicados,
+            recetasMedicas: nuevasRecetas
+          });
+          // Actualizar local
+          paciente.medicamentosIndicados = nuevosIndicados;
+          paciente.recetasMedicas = nuevasRecetas;
+        }
+      }
+    },
+
+    async agregarMedicamento() {
+      this.diagnosticoError = false;
+      if (!this.nuevoDiagnostico.length) {
+        this.diagnosticoError = true;
+        return;
+      }
+      try {
+        // Validar que el nombre no esté vacío
+        if (!this.nuevoMedicamento.nombre.trim()) {
+          alert("El nombre del medicamento es obligatorio");
+          return;
+        }
+
+        // Verificar si ya existe un medicamento con el mismo nombre
+        const existe = this.medicamentos.some(m => 
+          m.nombre.toLowerCase() === this.nuevoMedicamento.nombre.toLowerCase()
+        );
+        
+        if (existe) {
+          alert("Ya existe un medicamento con ese nombre");
+          return;
+        }
+
+        // Agregar el medicamento a Firestore
+        const medicamentoData = {
+          nombre: this.nuevoMedicamento.nombre.trim(),
+          descripcion: this.nuevoMedicamento.descripcion.trim(),
+          dosisRecomendada: this.nuevoMedicamento.dosisRecomendada ? parseInt(this.nuevoMedicamento.dosisRecomendada) : null,
+          frecuencia: this.nuevoMedicamento.frecuencia,
+          instrucciones: this.nuevoMedicamento.instrucciones.trim(),
+          fechaCreacion: new Date().toISOString(),
+          creadoPor: this.admin.nombre || 'Administrador'
+        };
+
+        const nuevoMedicamento = await addMedicamento(medicamentoData);
+        
+        // Agregar a la lista local
+        this.medicamentos.push(nuevoMedicamento);
+
+        // Asignar a pacientes si hay seleccionados
+        if (this.pacientesParaNuevoMedicamento.length > 0) {
+          const fechaAsignacion = new Date().toISOString();
+          for (const paciente of this.pacientesParaNuevoMedicamento) {
+            const pacienteRef = doc(db, 'pacientes', paciente.id);
+            const actuales = Array.isArray(paciente.medicamentosIndicados) ? paciente.medicamentosIndicados : [];
+            const objAsignado = {
+              id: nuevoMedicamento.id,
+              nombre: nuevoMedicamento.nombre,
+              descripcion: nuevoMedicamento.descripcion,
+              dosisRecomendada: nuevoMedicamento.dosisRecomendada,
+              frecuencia: nuevoMedicamento.frecuencia,
+              instrucciones: nuevoMedicamento.instrucciones,
+              fechaAsignacion
+            };
+            const nuevos = [...actuales.filter(m => m.id !== nuevoMedicamento.id), objAsignado];
+            const recetas = Array.isArray(paciente.recetasMedicas) ? paciente.recetasMedicas : [];
+            const yaExiste = recetas.some(r => r.id === nuevoMedicamento.id && r.fechaAsignacion === objAsignado.fechaAsignacion);
+            const nuevasRecetas = yaExiste ? recetas : [...recetas, objAsignado];
+            
+            // Guardar también el diagnóstico del paciente
+            await updateDoc(pacienteRef, {
+              medicamentosIndicados: nuevos,
+              recetasMedicas: nuevasRecetas,
+              diagnosticos: this.nuevoDiagnostico // Guardar el diagnóstico del paciente
+            });
+          }
+        }
+
+        // Limpiar el formulario
+        this.nuevoMedicamento = {
+          nombre: '',
+          descripcion: '',
+          dosisRecomendada: '',
+          frecuencia: '',
+          instrucciones: ''
+        };
+        this.pacientesParaNuevoMedicamento = [];
+        this.nuevoDiagnostico = []; // Limpiar diagnóstico
+
+        await this.cargarEnfermerasYPacientes();
+      } catch (e) {
+        console.error("Error al agregar medicamento:", e);
+        alert("Error al agregar el medicamento");
+      }
+    },
+
+    async eliminarMedicamento(medicamentoId) {
+      if (!confirm("¿Estás seguro de que quieres eliminar este medicamento?")) {
+        return;
+      }
+
+      try {
+        // Eliminar de Firestore
+        await deleteMedicamento(medicamentoId);
+        
+        // Eliminar de la lista local
+        this.medicamentos = this.medicamentos.filter(m => m.id !== medicamentoId);
+        
+        alert("Medicamento eliminado exitosamente");
+      } catch (e) {
+        console.error("Error al eliminar medicamento:", e);
+        alert("Error al eliminar el medicamento");
+      }
+    },
+
+    abrirModalAsignar(medicamento) {
+      this.medicamentoAAsignar = medicamento;
+      this.pacientesSeleccionados = []; // Limpiar selección
+      this.mostrarModalAsignar = true;
+    },
+
+    cerrarModalAsignar() {
+      this.mostrarModalAsignar = false;
+      this.medicamentoAAsignar = null;
+      this.pacientesSeleccionados = [];
+    },
+
+    async asignarMedicamentoAPacientes() {
+      if (!this.medicamentoAAsignar || this.pacientesParaNuevoMedicamento.length === 0) {
+        alert("Por favor, selecciona un medicamento y al menos un paciente.");
+        return;
+      }
+
+      try {
+        const medicamento = this.medicamentoAAsignar;
+        const fechaAsignacion = new Date().toISOString();
+        for (const paciente of this.pacientesParaNuevoMedicamento) {
+          const pacienteRef = doc(db, 'pacientes', paciente.id);
+          // --- medicamentosIndicados ---
+          const actuales = Array.isArray(paciente.medicamentosIndicados) ? paciente.medicamentosIndicados : [];
+          const objAsignado = {
+            id: medicamento.id,
+            nombre: medicamento.nombre,
+            descripcion: medicamento.descripcion,
+            dosisRecomendada: medicamento.dosisRecomendada,
+            frecuencia: medicamento.frecuencia,
+            instrucciones: medicamento.instrucciones,
+            fechaAsignacion
+          };
+          const nuevos = [...actuales.filter(m => m.id !== medicamento.id), objAsignado];
+          // --- recetasMedicas ---
+          const recetas = Array.isArray(paciente.recetasMedicas) ? paciente.recetasMedicas : [];
+          // Evitar duplicados por id y fecha
+          const yaExiste = recetas.some(r => r.id === medicamento.id && r.fechaAsignacion === objAsignado.fechaAsignacion);
+          const nuevasRecetas = yaExiste ? recetas : [...recetas, objAsignado];
+          await updateDoc(pacienteRef, {
+            medicamentosIndicados: nuevos,
+            recetasMedicas: nuevasRecetas
+          });
+          paciente.medicamentosIndicados = nuevos;
+          paciente.recetasMedicas = nuevasRecetas;
+        }
+        alert("Medicamento asignado a pacientes exitosamente.");
+        this.cerrarModalAsignar();
+      } catch (e) {
+        console.error("Error al asignar medicamento a pacientes:", e);
+        alert("Error al asignar el medicamento a los pacientes.");
+      }
+    },
+    async buscarMedicamentosCIMA() {
+      if (!this.nuevoMedicamento.nombre || this.nuevoMedicamento.nombre.length < 3) {
+        this.sugerenciasCIMA = [];
+        return;
+      }
+      const query = encodeURIComponent(this.nuevoMedicamento.nombre);
+      const url = `https://cima.aemps.es/cima/rest/medicamentos?nombre=${query}`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        this.sugerenciasCIMA = Array.from(new Set((data.resultados || []).map(m => m.nombre))).slice(0, 10);
+      } catch (e) {
+        this.sugerenciasCIMA = [];
+        console.error('Error buscando medicamentos CIMA:', e);
+      }
+    },
+    seleccionarSugerenciaCIMA(nombre) {
+      this.nuevoMedicamento.nombre = nombre;
+      this.sugerenciasCIMA = [];
+    }
   }
 };
 </script>
@@ -759,7 +1257,476 @@ export default {
 }
 .tabla-pacientes-table {
   width: 100%;
-  min-width: 600px;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.tabla-pacientes-table th, .tabla-pacientes-table td {
+  border: 1px solid #e0e0e0;
+  padding: 14px 12px;
+  text-align: left;
+  vertical-align: middle;
+  background: #fff;
+}
+.tabla-pacientes-table th {
+  background: #f7f9fa;
+  font-weight: 600;
+}
+.tabla-pacientes-table tr:not(:last-child) td {
+  border-bottom: 1.5px solid #e0e0e0;
+}
+.tabla-pacientes-table td:not(:last-child),
+.tabla-pacientes-table th:not(:last-child) {
+  border-right: 1.5px solid #e0e0e0;
+}
+.tabla-pacientes-table tr {
+  transition: background 0.2s;
+}
+.tabla-pacientes-table tr:hover {
+  background: #f5faff;
+}
+.recetas-scroll-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.receta-item-col {
+  margin-bottom: 2px;
+}
+.btn-reporte-paciente {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* Estilos para gestión de medicamentos */
+.gestion-medicamentos .card {
+  margin-top: 32px;
+  padding: 24px 18px;
+}
+
+.medicamentos-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.formulario-medicamento {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.formulario-medicamento h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #333;
+  font-size: 18px;
+}
+
+.form-row {
+  margin-bottom: 15px;
+}
+
+.form-row label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #555;
+  font-size: 14px;
+}
+
+.form-row input,
+.form-row select,
+.form-row textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.form-row textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.btn-agregar-medicamento {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+  transition: background 0.3s;
+  width: 100%;
+}
+
+.btn-agregar-medicamento:hover {
+  background: #218838;
+}
+
+.lista-medicamentos h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #333;
+  font-size: 18px;
+}
+
+.medicamentos-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.medicamentos-scroll {
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.medicamento-card {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.medicamento-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.medicamento-header h4 {
+  margin: 0;
+  color: #333;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.btn-eliminar-medicamento {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.btn-eliminar-medicamento:hover {
+  background: #f8d7da;
+}
+
+.medicamento-info p {
+  margin: 5px 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.medicamento-info strong {
+  color: #333;
+}
+
+.no-medicamentos {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+  font-style: italic;
+}
+
+.btn-asignar-medicamento {
+  background: #4CAF50; /* Verde para asignar */
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: background 0.3s;
+  margin-top: 10px;
+}
+
+.btn-asignar-medicamento:hover {
+  background: #388E3C;
+}
+
+/* Modal de asignación de medicamento a paciente */
+.modal-asignar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-asignar {
+  background: white;
+  padding: 25px;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.modal-asignar h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #333;
+  font-size: 20px;
+}
+
+.modal-asignar p {
+  color: #555;
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+
+.modal-asignar label {
+  font-weight: bold;
+  color: #333;
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+
+.modal-asignar-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.btn-confirmar-asignacion, .btn-cancelar-asignacion {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s;
+}
+
+.btn-confirmar-asignacion {
+  background: #28a745;
+  color: white;
+}
+
+.btn-confirmar-asignacion:hover {
+  background: #218838;
+}
+
+.btn-cancelar-asignacion {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-cancelar-asignacion:hover {
+  background: #c82333;
+}
+
+/* Responsive para medicamentos */
+@media (max-width: 768px) {
+  .medicamentos-container {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .formulario-medicamento,
+  .lista-medicamentos {
+    padding: 15px;
+  }
+}
+.recetas-medicas-admin {
+  padding: 10px 18px 10px 18px;
+  font-size: 15px;
+  color: #333;
+}
+.recetas-scroll {
+  max-height: 120px;
+  overflow-y: auto;
+  margin-top: 4px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fff;
+  padding: 6px 10px;
+}
+.receta-item {
+  padding: 4px 0;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+}
+.receta-item:last-child {
+  border-bottom: none;
+}
+.receta-nombre {
+  font-weight: bold;
+  color: #2d4fff;
+}
+.receta-fecha {
+  color: #888;
+  font-size: 12px;
+  margin-left: 8px;
+}
+.btn-receta-prueba {
+  margin-left: 8px;
+  background: #ff9800;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+.btn-receta-prueba:hover {
+  background: #e65100;
+}
+.recetas-scroll-col {
+  max-height: 90px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+.receta-item-col {
+  padding: 2px 0;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 13px;
+}
+.receta-item-col:last-child {
+  border-bottom: none;
+}
+.receta-nombre {
+  font-weight: bold;
+  color: #2d4fff;
+}
+.receta-fecha {
+  color: #888;
+  font-size: 11px;
+  margin-left: 6px;
+}
+.sugerencias-cima-lista {
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 180px;
+  overflow-y: auto;
+  position: absolute;
+  z-index: 10;
+  width: 100%;
+}
+.sugerencia-cima-item {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.sugerencia-cima-item:hover {
+  background: #f0f0f0;
+}
+.admin-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 28px;
+  border-bottom: 2px solid #e0e0e0;
+  overflow-x: auto;
+}
+.admin-tab {
+  background: none;
+  border: none;
+  outline: none;
+  padding: 12px 22px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #555;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  transition: color 0.2s, border-bottom 0.2s;
+  border-radius: 8px 8px 0 0;
+}
+.admin-tab.active {
+  color: #1976d2;
+  border-bottom: 3px solid #1976d2;
+  background: #f7f9fa;
+}
+@media (max-width: 600px) {
+  .admin-tab {
+    font-size: 15px;
+    padding: 10px 10px;
+  }
+  .admin-tabs {
+    gap: 2px;
+    margin-bottom: 18px;
+  }
+}
+.tabla-enfermeras-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.tabla-enfermeras-table th, .tabla-enfermeras-table td {
+  border: 1px solid #e0e0e0;
+  padding: 14px 12px;
+  text-align: left;
+  vertical-align: middle;
+  background: #fff;
+}
+.tabla-enfermeras-table th {
+  background: #f7f9fa;
+  font-weight: 600;
+}
+.tabla-enfermeras-table tr:not(:last-child) td {
+  border-bottom: 1.5px solid #e0e0e0;
+}
+.tabla-enfermeras-table td:not(:last-child),
+.tabla-enfermeras-table th:not(:last-child) {
+  border-right: 1.5px solid #e0e0e0;
+}
+.tabla-enfermeras-table tr {
+  transition: background 0.2s;
+}
+.tabla-enfermeras-table tr:hover {
+  background: #f5faff;
+}
+@media (max-width: 600px) {
+  .tabla-enfermeras-table th, .tabla-enfermeras-table td {
+    padding: 10px 6px;
+    font-size: 14px;
+  }
+}
+.error-msg {
+  color: #d32f2f;
+  font-size: 14px;
+  margin-top: 4px;
+  margin-bottom: 2px;
 }
 </style>
 

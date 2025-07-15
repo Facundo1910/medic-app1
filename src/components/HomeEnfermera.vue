@@ -34,20 +34,27 @@
           :nombre="pacienteActual.nombre"
           :apellido="pacienteActual.apellido"
           :diagnosticos="diagnosticosSeleccionados || []"
-          :exito="guardadoDiagnosticoExito"
-          :error="guardadoDiagnosticoError"
-          @guardar-diagnosticos="guardarDiagnosticos"
         />
       </section>
   
       <!-- Formularios de edición (solo visibles si hay paciente seleccionado) -->
       <div v-if="pacienteActual">
-        <section class="diagnostico-form card">
-          <h2 style="margin-top:0;">Cargar nuevo diagnóstico</h2>
-          <DiagnosticoSelector
-            :diagnosticos="diagnosticosSeleccionados || []"
-            @update:diagnosticos="diagnosticosSeleccionados = $event"
-          />
+        <!-- Sección de medicamentos indicados por el administrador -->
+        <section class="medicamentos-indicados card">
+          <h2>Medicamentos indicados por el administrador</h2>
+          <div v-if="medicamentosIndicadosVisibles.length > 0" class="medicamentos-indicados-scroll">
+            <div v-for="med in medicamentosIndicadosVisibles" :key="med.id" class="med-indicado-item">
+              <div class="med-indicado-nombre">{{ med.nombre }}</div>
+              <div v-if="med.descripcion"><strong>Descripción:</strong> {{ med.descripcion }}</div>
+              <div v-if="med.dosisRecomendada"><strong>Dosis:</strong> {{ med.dosisRecomendada }} mg</div>
+              <div v-if="med.frecuencia"><strong>Frecuencia:</strong> {{ med.frecuencia }}</div>
+              <div v-if="med.instrucciones"><strong>Instrucciones:</strong> {{ med.instrucciones }}</div>
+              <div><em>Asignado el: {{ formatearFechaCorta(med.fechaAsignacion) }}</em></div>
+            </div>
+          </div>
+          <div v-else class="no-data">
+            <p>No hay medicamentos indicados actualmente</p>
+          </div>
         </section>
       
         <section class="medicacion-form card">
@@ -61,6 +68,7 @@
             @update:fechaHora="nueva.fechaHora = $event"
             :errorFecha="errorFechaMedicacion"
             @update:errorFecha="errorFechaMedicacion = $event"
+            :medicamentosDisponibles="medicamentosDisponibles"
             @registrar="registrarMedicacion"
           />
           <div v-if="emailNotificationStatus" :class="getEmailStatusClass()">
@@ -174,16 +182,16 @@
 import { db } from "@/firebase";
 import { collection, getDocs, updateDoc, arrayUnion, arrayRemove, doc } from "firebase/firestore";
 import PacienteCard from "@/components/commons/PacienteCard.vue";
-import DiagnosticoSelector from "@/components/commons/DiagnosticoSelector.vue";
 import MedicacionForm from "@/components/commons/MedicacionForm.vue";
 import { sendMedicationNotification, isEmailJSConfigured, sendVitalSignsNotification } from "@/services/emailService";
+import { getMedicamentos } from "@/services/medicamentoService";
 import SignosVitalesCharts from "@/components/commons/SignosVitalesCharts.vue";
 import { generarPDFSignosYMedicaciones } from '../utils/helpers';
 import { sendPatientReportWithAttachment } from '@/services/emailService';
 
 export default {
   name: "HomeEnfermera",
-  components: { PacienteCard, DiagnosticoSelector, MedicacionForm, SignosVitalesCharts },
+  components: { PacienteCard, MedicacionForm, SignosVitalesCharts },
   data() {
     return {
       enfermera: {
@@ -200,8 +208,6 @@ export default {
       historial: [],
       sugerencias: [],
       diagnosticosSeleccionados: [],
-      guardadoDiagnosticoExito: false,
-      guardadoDiagnosticoError: false,
       errorFechaMedicacion: "",
       emailNotificationStatus: "", // Para mostrar el estado del envío de email
       grupoAbierto: {},
@@ -218,7 +224,21 @@ export default {
       },
       signosExito: false,
       signosError: false,
+      medicamentosDisponibles: [],
+      medicamentosIndicadosVisibles: [],
     };
+  },
+  watch: {
+    pacienteActual: {
+      immediate: true,
+      handler(nuevo) {
+        if (nuevo && Array.isArray(nuevo.medicamentosIndicados)) {
+          this.filtrarYLimpiarMedicamentosIndicados(nuevo);
+        } else {
+          this.medicamentosIndicadosVisibles = [];
+        }
+      }
+    }
   },
   computed: {
     historialAgrupado() {
@@ -265,6 +285,8 @@ export default {
 
       // Cargar lista de pacientes
       await this.cargarPacientes();
+      // Cargar medicamentos disponibles
+      await this.cargarMedicamentosDisponibles();
     } catch (e) {
       console.error("Error al cargar datos:", e);
       alert("Error al cargar los datos");
@@ -292,6 +314,14 @@ export default {
         }
       } catch (e) {
         console.error("Error al cargar pacientes:", e);
+      }
+    },
+
+    async cargarMedicamentosDisponibles() {
+      try {
+        this.medicamentosDisponibles = await getMedicamentos();
+      } catch (e) {
+        console.error("Error al cargar medicamentos:", e);
       }
     },
     
@@ -388,32 +418,7 @@ export default {
       }
     },
 
-    async guardarDiagnosticos(diagnosticos) {
-      if (!this.pacienteActual) return;
-      // Si no recibe argumento, usa el array actual
-      if (!Array.isArray(diagnosticos)) {
-        diagnosticos = this.diagnosticosSeleccionados;
-      }
-      try {
-        const docRef = doc(db, "pacientes", this.pacienteActual.id);
-        // Asegurarse de que nunca se guarde undefined
-        await updateDoc(docRef, {
-          diagnosticos: Array.isArray(diagnosticos) ? diagnosticos : []
-        });
-        
-        this.diagnosticosSeleccionados = diagnosticos;
-        this.guardadoDiagnosticoExito = true;
-        this.guardadoDiagnosticoError = false;
-        
-        setTimeout(() => {
-          this.guardadoDiagnosticoExito = false;
-        }, 3000);
-      } catch (e) {
-        this.guardadoDiagnosticoError = true;
-        this.guardadoDiagnosticoExito = false;
-        console.error("Error al guardar diagnósticos:", e);
-      }
-    },
+
 
     async registrarMedicacion(medicacion) {
       if (!this.pacienteActual) return;
@@ -602,6 +607,41 @@ export default {
       const indexGlobal = this.historial.findIndex(item => item === grupo[inicio + idx]);
       if (indexGlobal !== -1) {
         this.eliminarMedicacion(indexGlobal);
+      }
+    },
+    formatearFechaCorta(fecha) {
+      if (!fecha) return '';
+      const d = new Date(fecha);
+      return d.toLocaleDateString();
+    },
+    async filtrarYLimpiarMedicamentosIndicados(paciente) {
+      const hoy = new Date();
+      hoy.setHours(0,0,0,0);
+      const visibles = [];
+      const historicos = Array.isArray(paciente.medicamentosHistoricos) ? paciente.medicamentosHistoricos.slice() : [];
+      let huboCambios = false;
+      for (const med of paciente.medicamentosIndicados || []) {
+        const fecha = new Date(med.fechaAsignacion);
+        fecha.setHours(0,0,0,0);
+        if (fecha < hoy) {
+          // Mover a historicos
+          historicos.push(med);
+          huboCambios = true;
+        } else {
+          visibles.push(med);
+        }
+      }
+      this.medicamentosIndicadosVisibles = visibles;
+      if (huboCambios) {
+        // Actualizar en Firestore
+        const docRef = doc(db, "pacientes", paciente.id);
+        await updateDoc(docRef, {
+          medicamentosIndicados: visibles,
+          medicamentosHistoricos: historicos
+        });
+        // Refrescar local
+        this.pacienteActual.medicamentosIndicados = visibles;
+        this.pacienteActual.medicamentosHistoricos = historicos;
       }
     }
   }
@@ -920,6 +960,29 @@ th {
   color: #d32f2f;
   margin-left: 10px;
   font-weight: 600;
+}
+
+.medicamentos-indicados-scroll {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fafcff;
+  margin-bottom: 8px;
+}
+.med-indicado-item {
+  padding: 10px 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+.med-indicado-item:last-child {
+  border-bottom: none;
+}
+.med-indicado-nombre {
+  font-weight: bold;
+  font-size: 16px;
+  color: #2d4fff;
+  margin-bottom: 2px;
 }
 
 @media (max-width: 768px) {

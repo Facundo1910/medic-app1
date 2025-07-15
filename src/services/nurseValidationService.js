@@ -48,30 +48,48 @@ export const sendNurseValidationRequest = async (nurseData) => {
  */
 export const approveNurseAccount = async (requestId, adminMessage = '') => {
   try {
+    console.log('[AprobarEnfermera] Buscando solicitud con ID:', requestId);
     const q = query(collection(db, 'nurseValidationRequests'), where('__name__', '==', requestId));
     const querySnapshot = await getDocs(q);
-    if (querySnapshot.empty) return { success: false, message: 'Solicitud no encontrada' };
+    if (querySnapshot.empty) {
+      console.error('[AprobarEnfermera] Solicitud no encontrada para ID:', requestId);
+      return { success: false, message: 'Solicitud no encontrada' };
+    }
     const requestDoc = querySnapshot.docs[0];
     const requestData = requestDoc.data();
-    await addDoc(collection(db, 'enfermeras'), {
-      nombre: requestData.nombre,
-      apellido: requestData.apellido,
-      dni: requestData.dni,
-      clave: requestData.clave,
-      anioNacimiento: requestData.anioNacimiento,
-      email: requestData.email,
-      rol: 'enfermera',
-      aprobadoPor: 'Administrador',
-      fechaAprobacion: new Date().toISOString()
-    });
-    await updateDoc(doc(db, 'nurseValidationRequests', requestId), {
-      estado: 'aprobado',
-      aprobado: true,
-      fechaAprobacion: new Date().toISOString(),
-      mensaje: adminMessage
-    });
+    console.log('[AprobarEnfermera] Datos de la solicitud:', requestData);
+    try {
+      await addDoc(collection(db, 'enfermeras'), {
+        nombre: requestData.nombre,
+        apellido: requestData.apellido,
+        dni: requestData.dni,
+        clave: requestData.clave,
+        anioNacimiento: requestData.anioNacimiento || requestData.fechaNacimiento,
+        email: requestData.email,
+        rol: 'enfermera',
+        aprobadoPor: 'Administrador',
+        fechaAprobacion: new Date().toISOString()
+      });
+      console.log('[AprobarEnfermera] Enfermera agregada a la colección enfermeras');
+    } catch (errAdd) {
+      console.error('[AprobarEnfermera] Error al agregar enfermera:', errAdd);
+      throw errAdd;
+    }
+    try {
+      await updateDoc(doc(db, 'nurseValidationRequests', requestId), {
+        estado: 'aprobado',
+        aprobado: true,
+        fechaAprobacion: new Date().toISOString(),
+        mensaje: adminMessage
+      });
+      console.log('[AprobarEnfermera] Solicitud actualizada a aprobado');
+    } catch (errUpdate) {
+      console.error('[AprobarEnfermera] Error al actualizar solicitud:', errUpdate);
+      throw errUpdate;
+    }
     return { success: true, message: 'Cuenta aprobada exitosamente.' };
   } catch (error) {
+    console.error('[AprobarEnfermera] Error general:', error);
     return { success: false, message: 'Error al aprobar la cuenta.' };
   }
 };

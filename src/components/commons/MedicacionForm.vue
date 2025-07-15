@@ -9,8 +9,12 @@
         required
       />
       <ul v-if="sugerencias.length" class="sugerencias">
-        <li v-for="(s, i) in sugerencias" :key="i" @click="seleccionarMedicamento(s)">
-          {{ s }}
+        <li v-for="(s, i) in sugerencias" :key="i" @click="seleccionarMedicamento(s)" :class="{ 'medicamento-admin': s.esAdmin }">
+          <div class="sugerencia-nombre">{{ s.nombre }}</div>
+          <div v-if="s.esAdmin && s.dosis" class="sugerencia-info">
+            Dosis: {{ s.dosis }} mg | {{ s.frecuencia }}
+          </div>
+          <div v-if="s.esAdmin" class="sugerencia-badge">💊 Admin</div>
         </li>
       </ul>
     </div>
@@ -43,7 +47,8 @@ export default {
     medicamento: { type: String, required: true },
     dosis: { type: [String, Number], required: true },
     fechaHora: { type: String, required: true },
-    errorFecha: { type: String, default: "" }
+    errorFecha: { type: String, default: "" },
+    medicamentosDisponibles: { type: Array, default: () => [] }
   },
   data() {
     return {
@@ -65,21 +70,53 @@ export default {
         this.$emit('update:medicamento', this.medicamentoLocal);
         return;
       }
-      const query = encodeURIComponent(this.medicamentoLocal);
-      const url = `https://cima.aemps.es/cima/rest/medicamentos?nombre=${query}`;
+
+      const query = this.medicamentoLocal.toLowerCase();
+      let sugerencias = [];
+
+      // Buscar en medicamentos disponibles del administrador
+      const medicamentosAdmin = this.medicamentosDisponibles.filter(m => 
+        m.nombre.toLowerCase().includes(query)
+      ).map(m => ({
+        nombre: m.nombre,
+        dosis: m.dosisRecomendada,
+        frecuencia: m.frecuencia,
+        instrucciones: m.instrucciones,
+        esAdmin: true
+      }));
+
+      // Buscar en API externa
       try {
+        const queryEncoded = encodeURIComponent(this.medicamentoLocal);
+        const url = `https://cima.aemps.es/cima/rest/medicamentos?nombre=${queryEncoded}`;
         const res = await fetch(url);
         const data = await res.json();
-        this.sugerencias = Array.from(new Set((data.resultados || []).map(m => m.nombre))).slice(0, 10);
+        const medicamentosAPI = (data.resultados || []).map(m => ({
+          nombre: m.nombre,
+          esAdmin: false
+        }));
+
+        // Combinar resultados, priorizando medicamentos del administrador
+        sugerencias = [...medicamentosAdmin, ...medicamentosAPI].slice(0, 10);
       } catch (e) {
-        this.sugerencias = [];
+        // Si falla la API, usar solo medicamentos del administrador
+        sugerencias = medicamentosAdmin.slice(0, 10);
       }
+
+      this.sugerencias = sugerencias;
       this.$emit('update:medicamento', this.medicamentoLocal);
     },
-    seleccionarMedicamento(nombre) {
-      this.medicamentoLocal = nombre;
+    seleccionarMedicamento(sugerencia) {
+      this.medicamentoLocal = sugerencia.nombre;
+      
+      // Si es un medicamento del administrador, llenar automáticamente la dosis recomendada
+      if (sugerencia.esAdmin && sugerencia.dosis) {
+        this.dosisLocal = sugerencia.dosis;
+        this.$emit('update:dosis', sugerencia.dosis);
+      }
+      
       this.sugerencias = [];
-      this.$emit('update:medicamento', nombre);
+      this.$emit('update:medicamento', sugerencia.nombre);
     },
     onFechaInput() {
       this.$emit('update:fechaHora', this.fechaHoraLocal);
@@ -178,5 +215,42 @@ form button:hover {
 }
 .sugerencias li:hover {
   background: #e3e3e3;
+}
+
+.sugerencias li {
+  padding: 8px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.sugerencias li:last-child {
+  border-bottom: none;
+}
+
+.medicamento-admin {
+  background: #f0f8ff !important;
+  border-left: 3px solid #007bff;
+}
+
+.medicamento-admin:hover {
+  background: #e3f2fd !important;
+}
+
+.sugerencia-nombre {
+  font-weight: bold;
+  color: #333;
+}
+
+.sugerencia-info {
+  font-size: 12px;
+  color: #666;
+  margin-top: 2px;
+}
+
+.sugerencia-badge {
+  font-size: 10px;
+  color: #007bff;
+  font-weight: bold;
+  margin-top: 2px;
 }
 </style> 

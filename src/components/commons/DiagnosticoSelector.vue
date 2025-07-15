@@ -1,6 +1,5 @@
 <template>
   <div>
-    <label>Diagnóstico(s)</label>
     <div style="position: relative;">
       <input
         v-model="diagnosticoBusqueda"
@@ -117,9 +116,10 @@ export default {
 .input-uniforme {
   width: 100%;
   box-sizing: border-box;
-  padding: 5px;
-  border: 1px solid #ccc;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
   border-radius: 4px;
+  font-size: 14px;
 }
 .input-uniforme.moderno {
   width: 100%;
