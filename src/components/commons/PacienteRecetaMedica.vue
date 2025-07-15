@@ -1,10 +1,10 @@
 <template>
-  <section class="receta-medica">
+  <div class="receta-medica">
     <div class="card">
       <h2>💊 Receta Médica</h2>
       <div v-if="medicamentosIndicados && medicamentosIndicados.length">
         <ul class="lista-receta">
-          <li v-for="med in medicamentosIndicados" :key="med.id" class="receta-item-flex">
+          <li v-for="med in medicamentosIndicados" :key="med.id || med.nombre" class="receta-item-flex">
             <div class="receta-info-flex">
               <strong>{{ med.nombre }}</strong>
               <span v-if="med.dosisRecomendada"> - {{ med.dosisRecomendada }} mg</span>
@@ -22,7 +22,7 @@
         <p>No hay medicación vigente</p>
       </div>
     </div>
-  </section>
+  </div>
 </template>
 
 <script>
@@ -55,7 +55,7 @@ export default {
 
 <style scoped>
 .receta-medica {
-  margin-bottom: 30px;
+  width: 100%;
 }
 
 .card {
@@ -63,6 +63,8 @@ export default {
   border-radius: 10px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
   padding: 20px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .no-data {
@@ -78,45 +80,62 @@ h2 {
   display: flex;
   align-items: center;
   gap: 10px;
+  font-size: 18px;
 }
 
 .lista-receta {
   margin: 0;
-  padding: 0 0 0 18px;
-  list-style: disc;
+  padding: 0;
+  list-style: none;
 }
 
 .receta-item-flex {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 4px solid #007bff;
 }
 
 .receta-info-flex {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  flex: 1;
+  gap: 8px;
+}
+
+.receta-info-flex strong {
+  color: #333;
+  font-size: 16px;
+}
+
+.receta-info-flex span {
+  color: #666;
+  font-size: 14px;
 }
 
 .btn-descargar-receta-individual {
   background: #17989c;
   color: #fff;
   border: none;
-  padding: 4px 7px;
+  padding: 8px 12px;
   border-radius: 6px;
-  font-size: 1.1em;
+  font-size: 14px;
   font-weight: bold;
   cursor: pointer;
   transition: background 0.2s, color 0.2s;
   box-shadow: none;
   display: flex;
   align-items: center;
-  gap: 0;
-  margin-left: 12px;
-  margin-bottom: 0;
-  min-width: 28px;
-  min-height: 28px;
+  gap: 5px;
+  min-width: 40px;
+  min-height: 32px;
   justify-content: center;
+  white-space: nowrap;
 }
 
 .btn-descargar-receta-individual:hover {
@@ -125,7 +144,23 @@ h2 {
 }
 
 .btn-descargar-receta-individual .icono-descarga {
-  font-size: 1.2em;
+  font-size: 16px;
   margin: 0;
+}
+
+@media (max-width: 768px) {
+  .receta-item-flex {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .receta-info-flex {
+    width: 100%;
+  }
+  
+  .btn-descargar-receta-individual {
+    align-self: flex-end;
+  }
 }
 </style> 

@@ -2729,6 +2729,190 @@ export default {
   object-fit: contain;
 }
 
+/* Modal de recetas médicas */
+.modal-recetas-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.modal-recetas {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 800px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-recetas-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f8f9fa;
+}
+
+.modal-recetas-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.modal-recetas-content {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.sin-recetas-modal {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+  font-style: italic;
+}
+
+.recetas-por-fecha {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.grupo-fecha {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.fecha-grupo {
+  background: #f8f9fa;
+  padding: 12px 16px;
+  margin: 0;
+  color: #333;
+  font-size: 16px;
+  font-weight: bold;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.recetas-del-dia {
+  padding: 16px;
+}
+
+.receta-modal-item {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.receta-modal-item:last-child {
+  margin-bottom: 0;
+}
+
+.receta-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.receta-nombre {
+  color: #007bff;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.receta-hora {
+  color: #666;
+  font-size: 14px;
+  background: #f8f9fa;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.receta-modal-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.receta-dosis-modal,
+.receta-frecuencia-modal,
+.receta-instrucciones-modal {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.receta-diagnosticos {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.receta-diagnosticos strong {
+  color: #333;
+  font-size: 14px;
+  margin-right: 8px;
+}
+
+.diagnostico-tag {
+  display: inline-block;
+  background: #fff3e0;
+  color: #f57c00;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-right: 4px;
+  margin-bottom: 4px;
+}
+
+/* Responsive para modal de recetas */
+@media (max-width: 768px) {
+  .modal-recetas {
+    max-width: 95vw;
+    margin: 10px;
+  }
+  
+  .modal-recetas-header {
+    padding: 16px 20px;
+  }
+  
+  .modal-recetas-content {
+    padding: 20px;
+  }
+  
+  .receta-modal-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .receta-modal-info {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
 /* Responsive para configuración de firma */
 @media (max-width: 768px) {
   .firma-status {

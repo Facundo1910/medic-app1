@@ -50,10 +50,12 @@
       </section>
 
       <!-- Receta Médica -->
-      <PacienteRecetaMedica 
-        :medicamentosIndicados="paciente.medicamentosIndicados" 
-        @descargar-receta="descargarRecetaIndividualPDF"
-      />
+      <section class="receta-medica-section">
+        <PacienteRecetaMedica 
+          :medicamentosIndicados="paciente.medicamentosIndicados" 
+          @descargar-receta="descargarRecetaIndividualPDF"
+        />
+      </section>
       </section>
 
       <!-- Sección Configuración -->
@@ -961,6 +963,11 @@ h2 {
   padding-right: 0;
   width: 100%;
   box-sizing: border-box;
+}
+
+.receta-medica-section {
+  margin-top: 32px;
+  margin-bottom: 32px;
 }
 
 /* Estilos para la cabecera de signos vitales y los botones a la derecha */
