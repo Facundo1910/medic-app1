@@ -141,16 +141,18 @@
         <div class="card">
           <h2>💊 Receta Médica</h2>
           <div v-if="paciente.medicamentosIndicados && paciente.medicamentosIndicados.length">
-            <button @click="descargarRecetaPDF" class="btn-descargar-receta">
-              <span class="icono-descarga">📄</span> Descargar Receta Médica
-            </button>
             <ul class="lista-receta">
-              <li v-for="med in paciente.medicamentosIndicados" :key="med.id">
-                <strong>{{ med.nombre }}</strong>
-                <span v-if="med.dosisRecomendada"> - {{ med.dosisRecomendada }} mg</span>
-                <span v-if="med.frecuencia"> - {{ med.frecuencia }}</span>
-                <span v-if="med.instrucciones"> - {{ med.instrucciones }}</span>
-                <span v-if="med.fechaAsignacion"> ({{ formatearFecha(med.fechaAsignacion) }})</span>
+              <li v-for="med in paciente.medicamentosIndicados" :key="med.id" class="receta-item-flex">
+                <div class="receta-info-flex">
+                  <strong>{{ med.nombre }}</strong>
+                  <span v-if="med.dosisRecomendada"> - {{ med.dosisRecomendada }} mg</span>
+                  <span v-if="med.frecuencia"> - {{ med.frecuencia }}</span>
+                  <span v-if="med.instrucciones"> - {{ med.instrucciones }}</span>
+                  <span v-if="med.fechaAsignacion"> ({{ formatearFecha(med.fechaAsignacion) }})</span>
+                </div>
+                <button @click="descargarRecetaIndividualPDF(med)" class="btn-descargar-receta-individual">
+                  <span class="icono-descarga">📄</span>
+                </button>
               </li>
             </ul>
           </div>
@@ -557,6 +559,42 @@ export default {
       doc.text(`Contacto al teléfono: ---`, 12, y + 30);
       doc.text(`Correo: ${this.paciente.email || ''}`, 12, y + 35);
       doc.save('receta_medica.pdf');
+    },
+    async descargarRecetaIndividualPDF(medicamento) {
+      const doc = new jsPDF();
+      // Logo de Brionia (ruta correcta)
+      const logoUrl = require('@/assets/a1e7f095-a7c5-4529-a80f-9befabda94a3.png');
+      const img = new window.Image();
+      img.src = logoUrl;
+      img.onload = () => {
+        doc.addImage(img, 'PNG', 10, 8, 25, 25);
+        this._generarRecetaIndividualPDF(doc, medicamento);
+      };
+      img.onerror = () => {
+        // Si falla el logo, igual genera el PDF
+        this._generarRecetaIndividualPDF(doc, medicamento);
+      };
+    },
+    _generarRecetaIndividualPDF(doc, medicamento) {
+      doc.setFontSize(13);
+      doc.text('Médico especialista en Medicina Interna', 40, 15);
+      doc.setFontSize(11);
+      doc.text('Nombre', 40, 22);
+      doc.text('CMP: 0000   RNE: 0000', 40, 28);
+      doc.setLineWidth(0.5);
+      doc.line(10, 35, 200, 35);
+      doc.setFontSize(11);
+      doc.text(`NOMBRE: ${this.paciente.nombre || ''} ${this.paciente.apellido || ''}`, 12, 43);
+      doc.text(`N° DNI: ${this.paciente.dni || ''}`, 12, 50);
+      doc.text(`EDAD: ${this.calcularEdad(this.paciente.fechaNacimiento)}`, 80, 50);
+      doc.text(`DIAGNÓSTICO: ${this.diagnosticos.join(', ')}`, 12, 57);
+      doc.text('Rp./', 12, 65);
+      doc.text(`${medicamento.nombre || ''} ${medicamento.dosisRecomendada ? '- ' + medicamento.dosisRecomendada + ' mg' : ''} ${medicamento.frecuencia ? '- ' + medicamento.frecuencia : ''} ${medicamento.instrucciones ? '- ' + medicamento.instrucciones : ''}`, 16, 73);
+      doc.text(`FECHA: ${new Date().toLocaleDateString()}`, 12, 81);
+      doc.text('FIRMA Y SELLO', 150, 95);
+      doc.text(`Contacto al teléfono: ---`, 12, 100);
+      doc.text(`Correo: ${this.paciente.email || ''}`, 12, 105);
+      doc.save(`receta_individual_${medicamento.nombre || 'medicamento'}.pdf`);
     }
   }
 };
@@ -940,6 +978,47 @@ h2 {
   margin: 0;
   padding: 0 0 0 18px;
   list-style: disc;
+}
+
+.btn-descargar-receta-individual {
+  background: #17989c;
+  color: #fff;
+  border: none;
+  padding: 4px 7px;
+  border-radius: 6px;
+  font-size: 1.1em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-left: 12px;
+  margin-bottom: 0;
+  min-width: 28px;
+  min-height: 28px;
+  justify-content: center;
+}
+.btn-descargar-receta-individual:hover {
+  background: #1fcfcf;
+  color: #fff;
+}
+
+.btn-descargar-receta-individual .icono-descarga {
+  font-size: 1.2em;
+  margin: 0;
+}
+
+.receta-item-flex {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.receta-info-flex {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 @media (max-width: 768px) {

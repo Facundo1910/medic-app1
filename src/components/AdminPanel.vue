@@ -891,10 +891,13 @@ export default {
             const nuevasRecetas = yaExiste ? recetas : [...recetas, objAsignado];
             
             // Guardar también el diagnóstico del paciente
+            const diagnosticosActuales = Array.isArray(paciente.diagnosticos) ? paciente.diagnosticos : [];
+            const diagnosticosNuevos = this.nuevoDiagnostico.filter(d => !diagnosticosActuales.includes(d));
+            
             await updateDoc(pacienteRef, {
               medicamentosIndicados: nuevos,
               recetasMedicas: nuevasRecetas,
-              diagnosticos: this.nuevoDiagnostico // Guardar el diagnóstico del paciente
+              diagnosticos: [...diagnosticosActuales, ...diagnosticosNuevos] // Agregar diagnósticos sin duplicados
             });
           }
         }
