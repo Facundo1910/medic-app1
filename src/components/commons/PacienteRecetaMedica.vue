@@ -52,20 +52,30 @@ export default {
     };
   },
   async mounted() {
-    // Buscar firmaId en localStorage (usuario actual)
-    const usuarioData = localStorage.getItem('usuario');
-    if (usuarioData) {
-      const usuario = JSON.parse(usuarioData);
-      if (usuario.firmaId) {
-        try {
-          const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || 'https://medic-app1.vercel.app/api/firmas';
-          const res = await fetch(`${API_FIRMAS}/${usuario.firmaId}`);
+    // Buscar la firma del admin/médico que asignó la receta
+    try {
+      // Obtener todos los admins para buscar el que tenga firma
+      const { collection, getDocs } = await import('firebase/firestore');
+      const { db } = await import('@/firebase');
+      
+      const adminsRef = collection(db, "admins");
+      const querySnapshot = await getDocs(adminsRef);
+      
+      // Buscar el primer admin que tenga firmaId
+      for (const doc of querySnapshot.docs) {
+        const adminData = doc.data();
+        if (adminData.firmaId) {
+          const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
+          const res = await fetch(`${API_FIRMAS}/${adminData.firmaId}`);
           if (res.ok) {
             const data = await res.json();
             this.firmaUrl = data.imagen;
+            break; // Usar la primera firma encontrada
           }
-        } catch (e) { /* ignorar error */ }
+        }
       }
+    } catch (e) {
+      console.error('Error al cargar firma del médico:', e);
     }
   },
   computed: {
