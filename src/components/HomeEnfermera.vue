@@ -89,46 +89,25 @@
         <!-- Formulario de registro de signos vitales -->
         <section class="signos-vitales-form card">
           <h2>🩺 Registrar signos vitales</h2>
-          <form @submit.prevent="registrarSignosVitales" class="form-signos">
-            <div class="form-row">
-              <label>Temperatura corporal (°C):</label>
-              <input v-model.number="signos.temperatura" type="number" step="0.1" min="30" max="45" required />
-            </div>
-            
-            <div class="form-row">
-              <label>Presión arterial (mmHg):</label>
-              <input v-model="signos.presion" type="text" pattern="^\d{2,3}/\d{2,3}$" placeholder="Ej: 120/80" required />
-            </div>
-            
-            <div class="form-row">
-              <label>Frecuencia cardíaca (lpm):</label>
-              <input v-model.number="signos.frecuenciaCardiaca" type="number" min="30" max="200" required />
-            </div>
-            
-            <div class="form-row">
-              <label>Frecuencia respiratoria (resps/min):</label>
-              <input v-model.number="signos.frecuenciaRespiratoria" type="number" min="5" max="40" required />
-            </div>
-            
-            <div class="form-row">
-              <label>Saturación de oxígeno (% SpO2):</label>
-              <input v-model.number="signos.saturacionOxigeno" type="number" min="50" max="100" required />
-            </div>
-            
-            <div class="form-row">
-              <label>Glucemia (mg/dL, opcional):</label>
-              <input v-model.number="signos.glucemia" type="number" min="20" max="600" />
-            </div>
-            
-            <div class="form-row">
-              <label>Fecha y hora:</label>
-              <input v-model="signos.fechaHora" type="datetime-local" required />
-            </div>
-            
-            <button type="submit" class="btn-registrar-signos">Registrar signos vitales</button>
-            <span v-if="signosExito" class="exito">Signos vitales registrados ✔️</span>
-            <span v-if="signosError" class="error">Error al registrar signos vitales</span>
-          </form>
+          <SignosVitalesForm
+            :temperatura="signos.temperatura"
+            @update:temperatura="signos.temperatura = $event"
+            :presion="signos.presion"
+            @update:presion="signos.presion = $event"
+            :frecuenciaCardiaca="signos.frecuenciaCardiaca"
+            @update:frecuenciaCardiaca="signos.frecuenciaCardiaca = $event"
+            :frecuenciaRespiratoria="signos.frecuenciaRespiratoria"
+            @update:frecuenciaRespiratoria="signos.frecuenciaRespiratoria = $event"
+            :saturacionOxigeno="signos.saturacionOxigeno"
+            @update:saturacionOxigeno="signos.saturacionOxigeno = $event"
+            :glucemia="signos.glucemia"
+            @update:glucemia="signos.glucemia = $event"
+            :fechaHora="signos.fechaHora"
+            @update:fechaHora="signos.fechaHora = $event"
+            @registrar="registrarSignosVitales"
+          />
+          <span v-if="signosExito" class="exito">Signos vitales registrados ✔️</span>
+          <span v-if="signosError" class="error">Error al registrar signos vitales</span>
         </section>
         
         <!-- Gráficos de signos vitales (al final) -->
@@ -284,10 +263,24 @@ import PacienteDiagnosticos from './commons/PacienteDiagnosticos.vue';
 import PacienteHistorialMedicacion from './commons/PacienteHistorialMedicacion.vue';
 import PacienteResumen from './commons/PacienteResumen.vue';
 import MedicacionForm from './commons/MedicacionForm.vue';
+import SignosVitalesForm from './commons/SignosVitalesForm.vue';
+
+async function obtenerFirmaImgDePaciente(paciente) {
+  if (paciente.firmaId) {
+    try {
+      const res = await fetch(`http://localhost:4000/firmas/${paciente.firmaId}`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.imagen; // base64
+      }
+    } catch (e) { /* ignorar error */ }
+  }
+  return null;
+}
 
 export default {
   name: "HomeEnfermera",
-  components: { SignosVitalesCharts, PacienteInfo, PacienteDiagnosticos, PacienteHistorialMedicacion, PacienteResumen, MedicacionForm },
+  components: { SignosVitalesCharts, PacienteInfo, PacienteDiagnosticos, PacienteHistorialMedicacion, PacienteResumen, MedicacionForm, SignosVitalesForm },
   data() {
     return {
       enfermera: {
@@ -462,10 +455,12 @@ export default {
           // Buscar el canvas del gráfico combinado
           await this.$nextTick();
           const chartCanvas = document.querySelector('.grafico-combinado canvas');
+          const firmaImg = await obtenerFirmaImgDePaciente(paciente);
           const pdfBlob = await generarPDFSignosYMedicaciones(
             chartCanvas,
             paciente.medicaciones || [],
-            paciente
+            paciente,
+            firmaImg
           );
           // Convertir Blob a base64
           const base64pdf = await new Promise((resolve, reject) => {
@@ -639,13 +634,13 @@ export default {
       }
     },
 
-    async registrarSignosVitales() {
+    async registrarSignosVitales(signosData) {
       if (!this.pacienteActual) return;
       this.signosExito = false;
       this.signosError = false;
       try {
         const docRef = doc(db, "pacientes", this.pacienteActual.id);
-        const nuevoRegistro = { ...this.signos };
+        const nuevoRegistro = { ...signosData };
         await updateDoc(docRef, {
           signosVitales: arrayUnion(nuevoRegistro)
         });
@@ -869,6 +864,7 @@ export default {
 .home-enfermera {
   min-height: 100vh;
   padding: 32px 0;
+  background: #ffffff;
 }
 
 .contenedor-central {
@@ -879,6 +875,7 @@ export default {
   flex-direction: column;
   gap: 28px;
   margin-top: 32px;
+  background: #ffffff;
 }
 
 .contenedor-central > .card,
@@ -907,7 +904,7 @@ export default {
 }
 
 .card, .header, .paciente-selector, .paciente-info, .diagnostico-form, .medicacion-form, .historial {
-  background: rgba(255, 255, 255, 0.95);
+  background: #ffffff;
   border-radius: 10px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
   padding: 20px;
@@ -918,7 +915,7 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(255, 255, 255, 0.95);
+  background: #ffffff;
   padding: 15px 25px;
   border-radius: 10px;
   margin-bottom: 20px;
@@ -989,7 +986,7 @@ export default {
 }
 
 .card {
-  background: rgba(255, 255, 255, 0.95);
+  background: #ffffff;
   border-radius: 10px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
   padding: 20px;

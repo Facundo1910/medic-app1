@@ -3,12 +3,13 @@ import { getFirestore } from "firebase/firestore"
 
 // Configuración de Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyCojtJHrF3YIuK9sbNZduup8FVfZusRcsI",
-  authDomain: "medic-app-4553d.firebaseapp.com",
-  projectId: "medic-app-4553d",
-  storageBucket: "medic-app-4553d.appspot.com",
-  messagingSenderId: "731977918402",
-  appId: "1:731977918402:web:cb412a6fc21d746574985b"
+  apiKey: "AIzaSyBqX8W9pD0jvEBI9XWRXh-VW16yag2yaK0",
+  authDomain: "medic-app1.firebaseapp.com",
+  projectId: "medic-app1",
+  storageBucket: "medic-app1.firebasestorage.app",
+  messagingSenderId: "481675748033",
+  appId: "1:481675748033:web:aa98fa4ff9eae8e1306a40",
+  measurementId: "G-Z35RJYQ78N"
 }
 
 // Inicializar Firebase

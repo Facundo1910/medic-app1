@@ -2,15 +2,26 @@
   <div class="receta-medica">
     <div class="card">
       <h2>💊 Receta Médica</h2>
-      <div v-if="medicamentosIndicados && medicamentosIndicados.length">
+      <!-- Mostrar firma si existe -->
+      <div v-if="firmaUrl" class="firma-digital-container">
+        <img :src="firmaUrl" alt="Firma digital" class="firma-digital-img" />
+        <div class="firma-label">Firma digital</div>
+      </div>
+      <div v-if="recetasVigentes && recetasVigentes.length">
         <ul class="lista-receta">
-          <li v-for="med in medicamentosIndicados" :key="med.id || med.nombre" class="receta-item-flex">
+          <li v-for="med in recetasVigentes" :key="med.id || med.nombre" class="receta-item-flex">
             <div class="receta-info-flex">
               <strong>{{ med.nombre }}</strong>
               <span v-if="med.dosisRecomendada"> - {{ med.dosisRecomendada }} mg</span>
               <span v-if="med.frecuencia"> - {{ med.frecuencia }}</span>
               <span v-if="med.instrucciones"> - {{ med.instrucciones }}</span>
+              <span v-if="med.diagnostico && med.diagnostico.length" class="diagnostico-receta">
+                📋 Diagnóstico: {{ Array.isArray(med.diagnostico) ? med.diagnostico.join(', ') : med.diagnostico }}
+              </span>
               <span v-if="med.fechaAsignacion"> ({{ formatearFecha(med.fechaAsignacion) }})</span>
+              <span class="fecha-caducidad" v-if="med.fechaAsignacion">
+                ⏰ Caduca: {{ formatearFechaCaducidad(med.fechaAsignacion) }}
+              </span>
             </div>
             <button @click="$emit('descargar-receta', med)" class="btn-descargar-receta-individual">
               <span class="icono-descarga">📄</span>
@@ -20,6 +31,7 @@
       </div>
       <div v-else class="no-data">
         <p>No hay medicación vigente</p>
+        <p class="info-caducidad">Las recetas caducan automáticamente después de 30 días</p>
       </div>
     </div>
   </div>
@@ -32,6 +44,54 @@ export default {
     medicamentosIndicados: {
       type: Array,
       default: () => []
+    }
+  },
+  data() {
+    return {
+      firmaUrl: null
+    };
+  },
+  async mounted() {
+    // Buscar firmaId en localStorage (usuario actual)
+    const usuarioData = localStorage.getItem('usuario');
+    if (usuarioData) {
+      const usuario = JSON.parse(usuarioData);
+      if (usuario.firmaId) {
+        try {
+          const res = await fetch(`http://localhost:4000/firmas/${usuario.firmaId}`);
+          if (res.ok) {
+            const data = await res.json();
+            this.firmaUrl = data.imagen;
+          }
+        } catch (e) { /* ignorar error */ }
+      }
+    }
+  },
+  computed: {
+    recetasVigentes() {
+      if (!this.medicamentosIndicados || !Array.isArray(this.medicamentosIndicados)) {
+        return [];
+      }
+
+      const ahora = new Date();
+      const treintaDiasMs = 30 * 24 * 60 * 60 * 1000; // 30 días en milisegundos
+
+      return this.medicamentosIndicados.filter(med => {
+        if (!med.fechaAsignacion) {
+          return true; // Si no tiene fecha, mantenerlo (por compatibilidad)
+        }
+
+        try {
+          const fechaAsignacion = new Date(med.fechaAsignacion);
+          const tiempoTranscurrido = ahora - fechaAsignacion;
+          
+          // Solo mostrar recetas que tengan menos de 30 días
+          return tiempoTranscurrido < treintaDiasMs;
+        } catch (e) {
+          console.error('Error al procesar fecha de asignación:', e);
+          return true; // En caso de error, mantener la receta
+        }
+      });
     }
   },
   methods: {
@@ -48,6 +108,22 @@ export default {
       } catch (e) {
         return fechaString;
       }
+    },
+    formatearFechaCaducidad(fechaString) {
+      try {
+        const fechaAsignacion = new Date(fechaString);
+        const fechaCaducidad = new Date(fechaAsignacion.getTime() + (30 * 24 * 60 * 60 * 1000));
+        
+        return fechaCaducidad.toLocaleString('es-ES', {
+          year: '2-digit',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      } catch (e) {
+        return 'Fecha no disponible';
+      }
     }
   }
 };
@@ -59,7 +135,7 @@ export default {
 }
 
 .card {
-  background: rgba(255, 255, 255, 0.95);
+  background: #ffffff;
   border-radius: 10px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08);
   padding: 20px;
@@ -72,6 +148,13 @@ export default {
   padding: 40px;
   color: #666;
   font-style: italic;
+}
+
+.info-caducidad {
+  font-size: 12px;
+  color: #888;
+  margin-top: 8px;
+  font-style: normal;
 }
 
 h2 {
@@ -118,6 +201,26 @@ h2 {
   font-size: 14px;
 }
 
+.fecha-caducidad {
+  color: #ff9800 !important;
+  font-weight: 500;
+  font-size: 12px !important;
+  background: #fff3cd;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #ffeaa7;
+}
+
+.diagnostico-receta {
+  color: #1976d2 !important;
+  font-weight: 500;
+  font-size: 12px !important;
+  background: #e3f2fd;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #bbdefb;
+}
+
 .btn-descargar-receta-individual {
   background: #17989c;
   color: #fff;
@@ -146,6 +249,26 @@ h2 {
 .btn-descargar-receta-individual .icono-descarga {
   font-size: 16px;
   margin: 0;
+}
+
+.firma-digital-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-bottom: 10px;
+}
+.firma-digital-img {
+  max-width: 180px;
+  max-height: 60px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+}
+.firma-label {
+  font-size: 12px;
+  color: #888;
+  margin-top: 2px;
+  text-align: right;
 }
 
 @media (max-width: 768px) {

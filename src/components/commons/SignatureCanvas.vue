@@ -43,6 +43,9 @@
 </template>
 
 <script>
+import { db } from '@/firebase';
+import { updateDoc, doc } from 'firebase/firestore';
+
 export default {
   name: 'SignatureCanvas',
   props: {
@@ -144,32 +147,41 @@ export default {
       this.inicializarCanvas();
     },
     
-    guardarFirma() {
+    async guardarFirma() {
       if (!this.hayFirma) {
         this.mensaje = 'Por favor, dibuja tu firma antes de guardar';
         this.mensajeTipo = 'error';
         return;
       }
-      
       try {
         const canvas = this.$refs.signatureCanvas;
         const firmaDataURL = canvas.toDataURL('image/png');
-        
-        // Guardar en localStorage
-        localStorage.setItem('medicoFirma', firmaDataURL);
-        
-        this.mensaje = '✅ Firma guardada exitosamente';
+        // Enviar la firma al backend de MongoDB
+        const response = await fetch('http://localhost:4000/firmas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imagen: firmaDataURL })
+        });
+        if (!response.ok) throw new Error('Error al guardar en MongoDB');
+        const data = await response.json();
+        this.mensaje = '✅ Firma guardada en MongoDB (ID: ' + data.id + ')';
         this.mensajeTipo = 'exito';
-        
-        // Emitir evento de firma guardada
-        this.$emit('firma-guardada', firmaDataURL);
-        
+        // Guardar el ID en Firebase (paciente actual)
+        const usuarioData = localStorage.getItem('usuario');
+        if (usuarioData) {
+          const usuario = JSON.parse(usuarioData);
+          if (usuario.rol === 'paciente' && usuario.id) {
+            const docRef = doc(db, 'pacientes', usuario.id);
+            await updateDoc(docRef, { firmaId: data.id });
+          }
+        }
+        // Emitir evento de firma guardada con el ID de Mongo
+        this.$emit('firma-guardada', data.id);
         setTimeout(() => {
           this.cerrarModal();
         }, 1500);
-        
       } catch (error) {
-        this.mensaje = '❌ Error al guardar la firma';
+        this.mensaje = '❌ Error al guardar la firma en MongoDB';
         this.mensajeTipo = 'error';
       }
     },

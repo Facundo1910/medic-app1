@@ -1,27 +1,47 @@
 import { db } from '@/firebase'
-import { collection, addDoc, getDocs } from 'firebase/firestore'
+import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
 
 /**
- * Crea la cuenta de administrador solo si no existe ningún admin.
- * Si ya existe, retorna un warning y no crea nada.
+ * Crea la cuenta de administrador verificando que no exista uno con el mismo DNI o email.
  */
 export const createAdminAccount = async (adminData) => {
   try {
-    // Verificar si ya existe algún administrador
-    const querySnapshot = await getDocs(collection(db, "admins"))
-    if (!querySnapshot.empty) {
+    console.log('🔍 Verificando DNI duplicado...');
+    // Verificar si ya existe un administrador con el mismo DNI
+    const dniQuery = query(collection(db, "admins"), where("dni", "==", adminData.dni))
+    const dniSnapshot = await getDocs(dniQuery)
+    
+    if (!dniSnapshot.empty) {
+      console.log('❌ DNI duplicado encontrado');
       return {
         success: false,
-        message: 'Ya existe un administrador registrado. Solo se permite uno.',
+        message: 'Ya existe un administrador con ese DNI.',
         warning: true
       }
     }
     
+    console.log('🔍 Verificando email duplicado...');
+    // Verificar si ya existe un administrador con el mismo email
+    const emailQuery = query(collection(db, "admins"), where("email", "==", adminData.email))
+    const emailSnapshot = await getDocs(emailQuery)
+    
+    if (!emailSnapshot.empty) {
+      console.log('❌ Email duplicado encontrado');
+      return {
+        success: false,
+        message: 'Ya existe un administrador con ese email.',
+        warning: true
+      }
+    }
+    
+    console.log('✅ No hay duplicados, creando administrador...');
     // Crear la cuenta de administrador
     const docRef = await addDoc(collection(db, "admins"), {
       ...adminData,
       fechaCreacion: new Date().toISOString()
     })
+    
+    console.log('✅ Administrador creado con ID:', docRef.id);
     
     return {
       success: true,

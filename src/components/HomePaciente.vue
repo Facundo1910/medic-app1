@@ -82,7 +82,7 @@
   
 <script>
 import { db } from "@/firebase";
-import { collection, getDocs, query, where, onSnapshot, updateDoc, addDoc } from "firebase/firestore";
+import { collection, getDocs, query, where, onSnapshot, updateDoc, addDoc, query as firestoreQuery, collection as firestoreCollection, where as firestoreWhere } from "firebase/firestore";
 import SignosVitalesCharts from './commons/SignosVitalesCharts.vue';
 import PacienteInfo from './commons/PacienteInfo.vue';
 import PacienteDiagnosticos from './commons/PacienteDiagnosticos.vue';
@@ -171,6 +171,7 @@ export default {
       graficoSeleccionado: 'todos', // 'todos' o el nombre de un parámetro vital
       parametroSeleccionado: null,
       medicamentoPendiente: null,
+      grupoAbierto: {},
       // Variables para configuración
       seccionActiva: 'informacion',
       tabs: [
@@ -456,21 +457,44 @@ export default {
       doc.save('receta_medica.pdf');
     },
     async     descargarRecetaIndividualPDF(medicamento) {
-      // Verificar si hay firma del médico guardada
-      const firmaMedico = window.localStorage.getItem('medicoFirma');
-      
-      if (!firmaMedico) {
-        alert('El médico aún no ha configurado su firma digital. Contacta al administrador.');
+      // Buscar el email del admin/médico asociado a esta receta específica
+      const adminEmail = medicamento.adminEmail;
+      if (!adminEmail) {
+        alert('No se puede encontrar el médico administrador asociado a esta receta. Contacta al administrador.');
         return;
       }
+      // Buscar el documento del admin por email
+      const q = firestoreQuery(firestoreCollection(db, "admins"), firestoreWhere("email", "==", adminEmail));
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.empty) {
+        alert('No se encontró el médico administrador en la base de datos. Contacta al administrador.');
+        return;
+      }
+      const adminDoc = querySnapshot.docs[0];
+      const firmaUrl = adminDoc.data().firmaUrl;
       
-      // Si hay firma, generar PDF directamente
-      this.generarPDFConFirma(medicamento, firmaMedico);
+      // TEMPORAL: La firma no es obligatoria por el momento
+      if (firmaUrl) {
+        // Si hay firma, la usamos
+        const img = new window.Image();
+        img.crossOrigin = "Anonymous";
+        img.src = firmaUrl;
+        img.onload = () => {
+          this.generarPDFConFirma(medicamento, img);
+        };
+        img.onerror = () => {
+          // Si falla cargar la firma, generamos PDF sin firma
+          this.generarPDFConFirma(medicamento, null);
+        };
+      } else {
+        // Si no hay firma, generamos PDF sin firma
+        this.generarPDFConFirma(medicamento, null);
+      }
     },
     
 
     
-    generarPDFConFirma(medicamento, firmaDataURL) {
+    generarPDFConFirma(medicamento, firmaImg) {
       const doc = new jsPDF();
       
       // Logo de Brionia
@@ -480,15 +504,15 @@ export default {
       
       img.onload = () => {
         doc.addImage(img, 'PNG', 10, 8, 25, 25);
-        this._generarRecetaIndividualPDFConFirma(doc, medicamento, firmaDataURL);
+        this._generarRecetaIndividualPDFConFirma(doc, medicamento, firmaImg);
       };
       
       img.onerror = () => {
-        this._generarRecetaIndividualPDFConFirma(doc, medicamento, firmaDataURL);
+        this._generarRecetaIndividualPDFConFirma(doc, medicamento, firmaImg);
       };
     },
     
-    _generarRecetaIndividualPDFConFirma(doc, medicamento, firmaDataURL) {
+    _generarRecetaIndividualPDFConFirma(doc, medicamento, firmaImg) {
       // Título y datos del médico
       doc.setFontSize(13);
       doc.text('Médico especialista en Medicina Interna', 40, 15);
@@ -504,9 +528,10 @@ export default {
       doc.text(`N° DNI: ${this.paciente.dni || ''}`, 12, 50);
       doc.text(`EDAD: ${this.calcularEdad(this.paciente.fechaNacimiento)}`, 80, 50);
       
-      // Diagnósticos
-      if (this.diagnosticos && this.diagnosticos.length > 0) {
-        doc.text(`DIAGNÓSTICO: ${this.diagnosticos.join(', ')}`, 12, 57);
+      // Diagnóstico específico de la receta
+      if (medicamento.diagnostico && medicamento.diagnostico.length > 0) {
+        const diagnosticoTexto = Array.isArray(medicamento.diagnostico) ? medicamento.diagnostico.join(', ') : medicamento.diagnostico;
+        doc.text(`DIAGNÓSTICO: ${diagnosticoTexto}`, 12, 57);
       } else {
         doc.text('DIAGNÓSTICO:', 12, 57);
       }
@@ -520,10 +545,10 @@ export default {
       const hoy = new Date();
       doc.text(`FECHA: ${hoy.toLocaleDateString()}`, 12, 81);
       
-      // Firma digital
-      if (firmaDataURL) {
+      // Firma digital (TEMPORAL: No obligatoria)
+      if (firmaImg) {
         try {
-          doc.addImage(firmaDataURL, 'PNG', 150, 85, 40, 20);
+          doc.addImage(firmaImg, 'PNG', 150, 85, 40, 20);
           doc.text('FIRMA DIGITAL', 150, 110);
         } catch (error) {
           console.error('Error al agregar firma:', error);
@@ -540,7 +565,11 @@ export default {
       
       // Timestamp de firma
       doc.setFontSize(8);
-      doc.text(`Documento firmado digitalmente el: ${hoy.toLocaleString()}`, 12, 115);
+      if (firmaImg) {
+        doc.text(`Documento firmado digitalmente el: ${hoy.toLocaleString()}`, 12, 115);
+      } else {
+        doc.text(`Documento generado el: ${hoy.toLocaleString()} (sin firma digital)`, 12, 115);
+      }
       
       doc.save(`receta_individual_${medicamento.nombre || 'medicamento'}.pdf`);
     },

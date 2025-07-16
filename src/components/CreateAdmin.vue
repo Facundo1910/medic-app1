@@ -1,7 +1,15 @@
 <template>
   <div class="create-admin">
     <div class="admin-form-container">
-      <h2>🔧 Crear Cuenta de Administrador</h2>
+      <!-- Botón para volver al login en la esquina superior izquierda -->
+      <button
+        type="button"
+        class="btn-volver-login"
+        @click="volverLogin"
+      >
+        ← Volver al Login
+      </button>
+      <h2 class="titulo-admin">🔧 Crear Cuenta de Administrador</h2>
       
       <div v-if="adminExists" class="warning">
         <p>⚠️ Ya existe al menos un administrador en el sistema.</p>
@@ -9,19 +17,85 @@
       </div>
       
       <form @submit.prevent="crearAdmin" class="admin-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="adminNombre">Nombre:</label>
+            <input 
+              v-model="adminData.nombre" 
+              @input="validarNombre"
+              id="adminNombre" 
+              type="text" 
+              required 
+              placeholder="Ej: Juan"
+              :class="{ 'error-input': nombreError }"
+            />
+            <div v-if="nombreError" class="error-message">
+              {{ nombreError }}
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="adminApellido">Apellido:</label>
+            <input 
+              v-model="adminData.apellido" 
+              @input="validarApellido"
+              id="adminApellido" 
+              type="text" 
+              required 
+              placeholder="Ej: Pérez"
+              :class="{ 'error-input': apellidoError }"
+            />
+            <div v-if="apellidoError" class="error-message">
+              {{ apellidoError }}
+            </div>
+          </div>
+        </div>
+        
         <div class="form-group">
-          <label for="adminNombre">Nombre del Administrador:</label>
+          <label for="adminDNI">DNI:</label>
           <input 
-            v-model="adminData.nombre" 
-            @input="validarNombre"
-            id="adminNombre" 
+            v-model="adminData.dni" 
+            @input="validarDNI"
+            id="adminDNI" 
             type="text" 
             required 
-            placeholder="Ej: JuanPerez (sin espacios)"
-            :class="{ 'error-input': nombreError }"
+            placeholder="Ej: 12345678"
+            maxlength="8"
+            :class="{ 'error-input': dniError }"
           />
-          <div v-if="nombreError" class="error-message">
-            {{ nombreError }}
+          <div v-if="dniError" class="error-message">
+            {{ dniError }}
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="adminEmail">Email:</label>
+          <input 
+            v-model="adminData.email" 
+            @input="validarEmail"
+            id="adminEmail" 
+            type="email" 
+            required 
+            placeholder="admin@ejemplo.com"
+            :class="{ 'error-input': emailError }"
+          />
+          <div v-if="emailError" class="error-message">
+            {{ emailError }}
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="adminTelefono">Teléfono: <span class="optional">(opcional)</span></label>
+          <input 
+            v-model="adminData.telefono" 
+            @input="validarTelefono"
+            id="adminTelefono" 
+            type="tel" 
+            placeholder="Ej: 11-1234-5678"
+            :class="{ 'error-input': telefonoError }"
+          />
+          <div v-if="telefonoError" class="error-message">
+            {{ telefonoError }}
           </div>
         </div>
         
@@ -29,31 +103,59 @@
           <label for="adminClave">Clave:</label>
           <input 
             v-model="adminData.clave" 
+            @input="validarClave"
             id="adminClave" 
             type="password" 
             required 
             placeholder="Clave segura"
+            :class="{ 'error-input': claveError }"
           />
+          <div v-if="claveError" class="error-message">
+            {{ claveError }}
+          </div>
         </div>
         
         <div class="form-group">
-          <label for="adminEmail">Email:</label>
+          <label for="adminConfirmarClave">Confirmar Clave:</label>
           <input 
-            v-model="adminData.email" 
-            id="adminEmail" 
-            type="email" 
+            v-model="adminData.confirmarClave" 
+            @input="validarConfirmarClave"
+            id="adminConfirmarClave" 
+            type="password" 
             required 
-            placeholder="admin@ejemplo.com"
+            placeholder="Repite la clave"
+            :class="{ 'error-input': confirmarClaveError }"
           />
+          <div v-if="confirmarClaveError" class="error-message">
+            {{ confirmarClaveError }}
+          </div>
         </div>
         
-        <button 
-          type="submit" 
-          :disabled="procesando || nombreError"
+        <!-- Debug: Mostrar errores activos -->
+        <div v-if="tieneErrores" class="debug-errors">
+          <strong>Errores activos:</strong>
+          <ul>
+            <li v-if="nombreError">Nombre: {{ nombreError }}</li>
+            <li v-if="apellidoError">Apellido: {{ apellidoError }}</li>
+            <li v-if="dniError">DNI: {{ dniError }}</li>
+            <li v-if="emailError">Email: {{ emailError }}</li>
+            <li v-if="telefonoError">Teléfono: {{ telefonoError }}</li>
+            <li v-if="claveError">Clave: {{ claveError }}</li>
+            <li v-if="confirmarClaveError">Confirmar Clave: {{ confirmarClaveError }}</li>
+          </ul>
+        </div>
+        
+        <!-- Botón estilizado sin deshabilitar -->
+        <button
+          type="button"
           class="btn-crear"
+          @click="crearAdmin"
         >
           {{ procesando ? 'Creando...' : 'Crear Administrador' }}
         </button>
+        <div v-if="tieneErrores" style="color:#dc3545; margin-top:8px;">
+          Corrige los errores antes de continuar.
+        </div>
       </form>
       
       <div v-if="mensaje" :class="['mensaje', mensajeTipo]">
@@ -67,7 +169,7 @@
           <li>Podrás aprobar o rechazar solicitudes de enfermeras</li>
           <li>Recibirás emails cuando las enfermeras se registren</li>
           <li>Accede a <code>/admin</code> después de crear la cuenta</li>
-          <li><strong>El nombre no puede contener espacios</strong></li>
+          <li><strong>Todos los campos marcados con * son obligatorios</strong></li>
         </ul>
       </div>
     </div>
@@ -83,53 +185,171 @@ export default {
     return {
       adminData: {
         nombre: '',
+        apellido: '',
+        dni: '',
+        email: 'facubas39@gmail.com',
+        telefono: '',
         clave: '',
-        email: 'facubas39@gmail.com', // Email por defecto
+        confirmarClave: '',
         rol: 'admin'
       },
       procesando: false,
       mensaje: '',
       mensajeTipo: 'info',
       adminExists: false,
-      nombreError: ''
+      nombreError: '',
+      apellidoError: '',
+      dniError: '',
+      emailError: '',
+      telefonoError: '',
+      claveError: '',
+      confirmarClaveError: ''
     };
+  },
+  computed: {
+    tieneErrores() {
+      const errores = this.nombreError || this.apellidoError || this.dniError || 
+             this.emailError || this.telefonoError || this.claveError || 
+             this.confirmarClaveError;
+      
+      return errores;
+    }
   },
   async mounted() {
     await this.verificarAdminExistente();
+    // Validar campos pre-llenados
+    this.$nextTick(() => {
+      this.validarTodosLosCampos();
+    });
   },
   methods: {
     validarNombre() {
-      const nombre = this.adminData.nombre;
+      const nombre = this.adminData.nombre.trim();
+      this.adminData.nombre = nombre;
       
-      // Limpiar espacios al inicio y final
-      this.adminData.nombre = nombre.trim();
-      
-      // Verificar si contiene espacios
-      if (nombre.includes(' ')) {
-        this.nombreError = '❌ El nombre no puede contener espacios. Usa solo letras, números y guiones.';
-        return false;
-      }
-      
-      // Verificar si está vacío
       if (nombre.length === 0) {
         this.nombreError = '';
         return false;
       }
       
-      // Verificar longitud mínima
-      if (nombre.length < 3) {
-        this.nombreError = '❌ El nombre debe tener al menos 3 caracteres.';
+      if (nombre.length < 2) {
+        this.nombreError = '❌ El nombre debe tener al menos 2 caracteres.';
         return false;
       }
       
-      // Verificar caracteres válidos (solo letras, números, guiones y guiones bajos)
-      const regex = /^[a-zA-Z0-9_-]+$/;
-      if (!regex.test(nombre)) {
-        this.nombreError = '❌ Solo se permiten letras, números, guiones (-) y guiones bajos (_).';
+      if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(nombre)) {
+        this.nombreError = '❌ Solo se permiten letras y espacios.';
         return false;
       }
       
       this.nombreError = '';
+      return true;
+    },
+    
+    validarApellido() {
+      const apellido = this.adminData.apellido.trim();
+      this.adminData.apellido = apellido;
+      
+      if (apellido.length === 0) {
+        this.apellidoError = '';
+        return false;
+      }
+      
+      if (apellido.length < 2) {
+        this.apellidoError = '❌ El apellido debe tener al menos 2 caracteres.';
+        return false;
+      }
+      
+      if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(apellido)) {
+        this.apellidoError = '❌ Solo se permiten letras y espacios.';
+        return false;
+      }
+      
+      this.apellidoError = '';
+      return true;
+    },
+    
+    validarDNI() {
+      const dni = this.adminData.dni.replace(/\D/g, '');
+      this.adminData.dni = dni;
+      
+      if (dni.length === 0) {
+        this.dniError = '';
+        return false;
+      }
+      
+      if (dni.length !== 8) {
+        this.dniError = '❌ El DNI debe tener exactamente 8 dígitos.';
+        return false;
+      }
+      
+      if (!/^\d{8}$/.test(dni)) {
+        this.dniError = '❌ El DNI solo puede contener números.';
+        return false;
+      }
+      
+      this.dniError = '';
+      return true;
+    },
+    
+    validarEmail() {
+      const email = this.adminData.email.trim();
+      this.adminData.email = email;
+      
+      if (email.length === 0) {
+        this.emailError = '';
+        return false;
+      }
+      
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        this.emailError = '❌ Ingresa un email válido.';
+        return false;
+      }
+      
+      this.emailError = '';
+      return true;
+    },
+    
+    validarTelefono() {
+      // Teléfono es completamente opcional, no validar nada
+      this.telefonoError = '';
+      return true;
+    },
+    
+    validarClave() {
+      const clave = this.adminData.clave;
+      
+      if (clave.length === 0) {
+        this.claveError = '';
+        return false;
+      }
+      
+      if (clave.length < 6) {
+        this.claveError = '❌ La clave debe tener al menos 6 caracteres.';
+        return false;
+      }
+      
+      this.claveError = '';
+      this.validarConfirmarClave(); // Revalidar confirmación
+      return true;
+    },
+    
+    validarConfirmarClave() {
+      const clave = this.adminData.clave;
+      const confirmarClave = this.adminData.confirmarClave;
+      
+      if (confirmarClave.length === 0) {
+        this.confirmarClaveError = '';
+        return false;
+      }
+      
+      if (clave !== confirmarClave) {
+        this.confirmarClaveError = '❌ Las claves no coinciden.';
+        return false;
+      }
+      
+      this.confirmarClaveError = '';
       return true;
     },
     
@@ -148,31 +368,61 @@ export default {
       this.mensaje = '';
       
       try {
-        // Validar nombre
-        if (!this.validarNombre()) {
+        
+        // Validar todos los campos
+        const validaciones = [
+          this.validarNombre(),
+          this.validarApellido(),
+          this.validarDNI(),
+          this.validarEmail(),
+          this.validarTelefono(),
+          this.validarClave(),
+          this.validarConfirmarClave()
+        ];
+        
+        if (validaciones.some(v => !v)) {
           this.mensaje = '❌ Por favor, corrige los errores en el formulario.';
           this.mensajeTipo = 'error';
           return;
         }
         
-        // Validar que la clave sea segura
-        if (!this.esClaveSegura(this.adminData.clave)) {
-          this.mensaje = 'La clave debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial.';
-          this.mensajeTipo = 'error';
-          return;
-        }
+        // Preparar datos para enviar (sin confirmarClave)
+        const datosParaEnviar = {
+          nombre: this.adminData.nombre,
+          apellido: this.adminData.apellido,
+          dni: this.adminData.dni,
+          email: this.adminData.email,
+          telefono: this.adminData.telefono || '',
+          clave: this.adminData.clave,
+          rol: 'admin'
+        };
         
-        const result = await createAdminAccount(this.adminData);
+        const result = await createAdminAccount(datosParaEnviar);
         
         if (result.success) {
           this.mensaje = `✅ ${result.message}\nID: ${result.id}`;
           this.mensajeTipo = 'success';
           
           // Limpiar formulario
-          this.adminData.nombre = '';
-          this.adminData.clave = '';
-          this.adminData.email = 'facubas39@gmail.com';
+          this.adminData = {
+            nombre: '',
+            apellido: '',
+            dni: '',
+            email: 'facubas39@gmail.com',
+            telefono: '',
+            clave: '',
+            confirmarClave: '',
+            rol: 'admin'
+          };
+          
+          // Limpiar errores
           this.nombreError = '';
+          this.apellidoError = '';
+          this.dniError = '';
+          this.emailError = '';
+          this.telefonoError = '';
+          this.claveError = '';
+          this.confirmarClaveError = '';
           
           // Actualizar estado
           await this.verificarAdminExistente();
@@ -194,6 +444,20 @@ export default {
     esClaveSegura(clave) {
       const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
       return regex.test(clave);
+    },
+    
+    validarTodosLosCampos() {
+      this.validarNombre();
+      this.validarApellido();
+      this.validarDNI();
+      this.validarEmail();
+      this.validarTelefono();
+      this.validarClave();
+      this.validarConfirmarClave();
+    },
+
+    volverLogin() {
+      this.$router.push('/login');
     }
   }
 };
@@ -214,8 +478,10 @@ export default {
   padding: 30px;
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  max-width: 500px;
+  max-width: 600px;
   width: 100%;
+  position: relative;
+  padding-top: 30px;
 }
 
 h2 {
@@ -238,6 +504,12 @@ h2 {
   margin-bottom: 20px;
 }
 
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
 .form-group {
   margin-bottom: 20px;
 }
@@ -247,6 +519,21 @@ h2 {
   margin-bottom: 8px;
   font-weight: bold;
   color: #333;
+}
+
+.form-group label::after {
+  content: " *";
+  color: #dc3545;
+}
+
+.form-group label .optional {
+  color: #6c757d;
+  font-size: 14px;
+  font-weight: normal;
+}
+
+.form-group label .optional::after {
+  content: "";
 }
 
 .form-group input {
@@ -276,6 +563,25 @@ h2 {
   font-weight: 500;
 }
 
+.debug-errors {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+  color: #856404;
+  font-size: 14px;
+}
+
+.debug-errors ul {
+  margin: 10px 0 0 0;
+  padding-left: 20px;
+}
+
+.debug-errors li {
+  margin-bottom: 5px;
+}
+
 .btn-crear {
   width: 100%;
   padding: 12px;
@@ -298,11 +604,40 @@ h2 {
   cursor: not-allowed;
 }
 
+/* Ajustar estilos para evitar superposición y quitar borde */
+.btn-volver-login {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  background: #e0e7ff;
+  color: #2563eb;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+  z-index: 2;
+  box-shadow: none;
+}
+.btn-volver-login:hover {
+  background: #c7d2fe;
+}
+.titulo-admin {
+  margin-top: 40px;
+  margin-bottom: 30px;
+  text-align: center;
+  color: #333;
+  font-size: 24px;
+}
+
 .mensaje {
   padding: 12px;
   border-radius: 8px;
   margin-bottom: 20px;
   font-weight: bold;
+  white-space: pre-line;
 }
 
 .mensaje.success {
@@ -358,5 +693,15 @@ h2 {
   padding: 2px 6px;
   border-radius: 4px;
   font-family: monospace;
+}
+
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .admin-form-container {
+    padding: 20px;
+  }
 }
 </style> 

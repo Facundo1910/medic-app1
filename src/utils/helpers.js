@@ -159,9 +159,10 @@ export function debounce(func, wait) {
  * @param {HTMLElement} chartElement - Elemento DOM del gráfico a capturar.
  * @param {Array} medicaciones - Array de objetos de medicación.
  * @param {Object} paciente - Datos del paciente (nombre, apellido, dni, email).
+ * @param {string|HTMLImageElement|null} firmaImg - Imagen de la firma (base64 o Image) opcional.
  * @returns {Promise<Blob>} - Blob del PDF generado.
  */
-export async function generarPDFSignosYMedicaciones(chartElement, medicaciones, paciente) {
+export async function generarPDFSignosYMedicaciones(chartElement, medicaciones, paciente, firmaImg = null) {
   const doc = new jsPDF('p', 'mm', 'a4');
   // Título y datos del paciente
   doc.setFontSize(18);
@@ -205,12 +206,45 @@ export async function generarPDFSignosYMedicaciones(chartElement, medicaciones, 
       doc.text(dosisLines[i] || '', 70, y);
       doc.text(fechaLines[i] || '', 110, y);
       y += 6;
-      if (y > 270) {
+      if (y > 230) {
         doc.addPage();
         y = 20;
       }
     }
   });
+
+  // Agregar la firma al final del PDF
+  y += 10;
+  if (y > 230) {
+    doc.addPage();
+    y = 20;
+  }
+  if (firmaImg) {
+    try {
+      // Si es base64, usar directamente; si es Image, convertir a base64
+      let imgData = firmaImg;
+      if (typeof firmaImg !== 'string' && firmaImg instanceof HTMLImageElement) {
+        // Convertir Image a base64
+        const canvas = document.createElement('canvas');
+        canvas.width = firmaImg.width;
+        canvas.height = firmaImg.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(firmaImg, 0, 0);
+        imgData = canvas.toDataURL('image/png');
+      }
+      doc.addImage(imgData, 'PNG', 140, y, 50, 20);
+      doc.text('FIRMA DIGITAL', 140, y + 25);
+    } catch (e) {
+      doc.text('FIRMA Y SELLO', 140, y + 10);
+    }
+  } else {
+    doc.text('FIRMA Y SELLO', 140, y + 10);
+  }
+
+  // Timestamp de firma
+  doc.setFontSize(8);
+  doc.text(`Documento generado el: ${new Date().toLocaleString('es-ES')}${firmaImg ? ' (con firma digital)' : ' (sin firma digital)'}`, 14, y + 35);
+
   return new Promise(resolve => {
     resolve(doc.output('blob'));
   });
