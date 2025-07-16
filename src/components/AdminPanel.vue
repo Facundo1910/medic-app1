@@ -1431,6 +1431,15 @@ export default {
         
         await updateDoc(doc(db, "admins", adminId), { firmaId });
         console.log('💾 firmaId guardado en Firestore:', firmaId);
+        
+        // Actualizar el objeto admin local
+        this.admin.firmaId = firmaId;
+        
+        // Actualizar localStorage
+        const usuarioActual = JSON.parse(localStorage.getItem('usuario'));
+        usuarioActual.firmaId = firmaId;
+        localStorage.setItem('usuario', JSON.stringify(usuarioActual));
+        
         await this.cargarFirmaAdmin(firmaId);
         this.mostrarModalFirma = false;
         this.setMensaje('✅ Firma guardada correctamente', 'exito');
@@ -1481,11 +1490,29 @@ export default {
       }
     },
     
-    eliminarFirma() {
+    async eliminarFirma() {
       if (confirm('¿Estás seguro de que quieres eliminar tu firma digital?')) {
-        this.firmaGuardada = null;
-        localStorage.removeItem('medicoFirma');
-        this.setMensaje('Firma eliminada', 'info');
+        try {
+          // Eliminar firmaId de Firebase
+          if (this.admin && this.admin.id) {
+            await updateDoc(doc(db, "admins", this.admin.id), { firmaId: null });
+            console.log('🗑️ firmaId eliminado de Firebase');
+          }
+          
+          // Actualizar objeto admin local
+          this.admin.firmaId = null;
+          
+          // Actualizar localStorage
+          const usuarioActual = JSON.parse(localStorage.getItem('usuario'));
+          usuarioActual.firmaId = null;
+          localStorage.setItem('usuario', JSON.stringify(usuarioActual));
+          
+          this.firmaGuardada = null;
+          this.setMensaje('✅ Firma eliminada correctamente', 'info');
+        } catch (error) {
+          console.error('Error al eliminar firma:', error);
+          this.setMensaje('❌ Error al eliminar la firma', 'error');
+        }
       }
     },
 
