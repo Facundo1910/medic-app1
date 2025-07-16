@@ -198,6 +198,12 @@ export default {
           if (usuario.rol === 'paciente' && usuario.id) {
             const docRef = doc(db, 'pacientes', usuario.id);
             await updateDoc(docRef, { firmaId: data.id });
+          } else if (usuario.rol === 'admin' && usuario.id) {
+            const docRef = doc(db, 'admins', usuario.id);
+            await updateDoc(docRef, { firmaId: data.id });
+          } else if (usuario.rol === 'medico' && usuario.id) {
+            const docRef = doc(db, 'medicos', usuario.id);
+            await updateDoc(docRef, { firmaId: data.id });
           }
         }
         // Emitir evento de firma guardada con el ID de Mongo
