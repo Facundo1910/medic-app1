@@ -76,21 +76,25 @@ export default {
     inicializarCanvas() {
       const canvas = this.$refs.signatureCanvas;
       if (!canvas) return;
-      
-      // Configurar canvas
-      canvas.width = 400;
-      canvas.height = 200;
-      
+      // Ajustar tamaño del canvas según el dispositivo
+      let width = 400;
+      let height = 200;
+      if (window.innerWidth < 500) {
+        width = Math.min(window.innerWidth * 0.9, 350);
+        height = 150;
+      }
+      canvas.width = width;
+      canvas.height = height;
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
       this.contexto = canvas.getContext('2d');
       this.contexto.strokeStyle = '#000';
       this.contexto.lineWidth = 2;
       this.contexto.lineCap = 'round';
       this.contexto.lineJoin = 'round';
-      
       // Limpiar canvas
       this.contexto.fillStyle = '#fff';
       this.contexto.fillRect(0, 0, canvas.width, canvas.height);
-      
       this.hayFirma = false;
       this.mensaje = '';
     },
@@ -109,8 +113,8 @@ export default {
       const rect = canvas.getBoundingClientRect();
       const touch = event.touches[0];
       return {
-        x: touch.clientX - rect.left,
-        y: touch.clientY - rect.top
+        x: (touch.clientX - rect.left) * (canvas.width / rect.width),
+        y: (touch.clientY - rect.top) * (canvas.height / rect.height)
       };
     },
     
@@ -135,12 +139,19 @@ export default {
     
     iniciarDibujoTouch(event) {
       event.preventDefault();
-      this.iniciarDibujo(event);
+      this.dibujando = true;
+      const pos = this.obtenerPosicionTouch(event);
+      this.contexto.beginPath();
+      this.contexto.moveTo(pos.x, pos.y);
     },
     
     dibujarTouch(event) {
       event.preventDefault();
-      this.dibujar(event);
+      if (!this.dibujando) return;
+      const pos = this.obtenerPosicionTouch(event);
+      this.contexto.lineTo(pos.x, pos.y);
+      this.contexto.stroke();
+      this.hayFirma = true;
     },
     
     limpiarCanvas() {
