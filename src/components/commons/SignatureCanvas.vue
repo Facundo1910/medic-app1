@@ -156,7 +156,20 @@ export default {
       try {
         const canvas = this.$refs.signatureCanvas;
         const firmaDataURL = canvas.toDataURL('image/png');
-        // Enviar la firma al backend de MongoDB
+        // Detectar si estamos en local
+        const isLocal = !process.env.VUE_APP_API_FIRMAS && window.location.hostname === 'localhost';
+        if (isLocal) {
+          // Guardar en localStorage
+          localStorage.setItem('firmaGuardada', firmaDataURL);
+          this.mensaje = '✅ Firma guardada localmente (solo en este navegador)';
+          this.mensajeTipo = 'exito';
+          this.$emit('firma-guardada', 'local');
+          setTimeout(() => {
+            this.cerrarModal();
+          }, 1500);
+          return;
+        }
+        // En producción, guardar en el backend
         const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || 'http://localhost:4000/firmas';
         const response = await fetch(API_FIRMAS, {
           method: 'POST',
