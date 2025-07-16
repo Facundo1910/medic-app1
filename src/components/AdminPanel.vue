@@ -34,7 +34,7 @@
                 <h3>Agregar Nuevo Medicamento</h3>
                 <form @submit.prevent="agregarMedicamento">
                   <div class="form-row">
-                    <label>Diagnóstico (obligatorio):</label>
+                    <label>Diagnóstico para esta receta (obligatorio):</label>
                     <DiagnosticoSelector :diagnosticos.sync="nuevoDiagnostico" />
                     <span v-if="diagnosticoError" class="error-msg">El diagnóstico es obligatorio.</span>
                   </div>
@@ -98,7 +98,7 @@
                     ></textarea>
                   </div>
                   <div class="form-row">
-                    <label>Asignar a paciente(s):</label>
+                    <label>Asignar a paciente(s) (obligatorio):</label>
                     <multiselect
                       v-model="pacientesParaNuevoMedicamento"
                       :options="pacientes"
@@ -112,6 +112,7 @@
                       track-by="id"
                       :max-height="250"
                     />
+                    <span v-if="pacienteError" class="error-msg">Debes seleccionar al menos un paciente.</span>
                   </div>
                   <button type="submit" class="btn-agregar-medicamento">➕ Agregar Medicamento</button>
                 </form>
@@ -706,10 +707,9 @@
 
 <script>
 import { db } from "@/firebase";
-import { collection, getDocs, query, orderBy, doc, updateDoc, addDoc } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, doc, updateDoc, addDoc, where } from "firebase/firestore";
 import { approveNurseAccount, rejectNurseAccount } from "@/services/nurseValidationService";
 import { getMedicamentos, addMedicamento, deleteMedicamento } from "@/services/medicamentoService";
-// Importar vue-multiselect
 import Multiselect from 'vue-multiselect';
 import 'vue-multiselect/dist/vue-multiselect.min.css';
 import { generarPDFSignosYMedicaciones } from '../utils/helpers';
@@ -770,6 +770,7 @@ export default {
       ],
       nuevoDiagnostico: [],
       diagnosticoError: false,
+      pacienteError: false,
       recetasExpandidas: {},
       // Variables para modal de recetas
       mostrarModalRecetas: false,
@@ -831,6 +832,12 @@ export default {
       } else if (nuevaSeccion === 'solicitudesDNI') {
         this.cargarSolicitudesDNI();
       }
+    },
+    pacientesParaNuevoMedicamento(nuevosPacientes) {
+      // Limpiar error de paciente cuando se selecciona uno
+      if (nuevosPacientes && nuevosPacientes.length > 0) {
+        this.pacienteError = false;
+      }
     }
   },
   async mounted() {
@@ -841,7 +848,15 @@ export default {
       if (usuarioData) {
         const usuario = JSON.parse(usuarioData);
         if (usuario.rol === 'admin') {
-          this.admin = usuario;
+          // Busca el documento en Firestore para obtener el id
+          const q = query(collection(db, "admins"), where("email", "==", usuario.email));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            const docSnap = querySnapshot.docs[0];
+            this.admin = { id: docSnap.id, ...docSnap.data() };
+          } else {
+            this.admin = usuario;
+          }
         } else {
           // Si no es admin, redirigir
           this.$router.push('/');
@@ -858,6 +873,10 @@ export default {
       await this.cargarMedicamentos();
       // Log para depuración de recetas médicas
       console.log('Pacientes cargados:', this.pacientes);
+
+      if (this.admin && this.admin.firmaId) {
+        await this.cargarFirmaAdmin(this.admin.firmaId);
+      }
     } catch (e) {
       console.error("Error al cargar datos:", e);
       alert("Error al cargar los datos");
@@ -1132,16 +1151,26 @@ export default {
 
     async agregarMedicamento() {
       this.diagnosticoError = false;
+      this.pacienteError = false;
+      
       if (!this.nuevoDiagnostico.length) {
         this.diagnosticoError = true;
         return;
       }
+      
+      // Validar que el nombre no esté vacío
+      if (!this.nuevoMedicamento.nombre.trim()) {
+        alert("El nombre del medicamento es obligatorio");
+        return;
+      }
+
+      // Validar que se haya seleccionado al menos un paciente
+      if (!this.pacientesParaNuevoMedicamento || this.pacientesParaNuevoMedicamento.length === 0) {
+        this.pacienteError = true;
+        return;
+      }
+      
       try {
-        // Validar que el nombre no esté vacío
-        if (!this.nuevoMedicamento.nombre.trim()) {
-          alert("El nombre del medicamento es obligatorio");
-          return;
-        }
 
         // Agregar el medicamento a Firestore
         const medicamentoData = {
@@ -1172,21 +1201,18 @@ export default {
               dosisRecomendada: nuevoMedicamento.dosisRecomendada,
               frecuencia: nuevoMedicamento.frecuencia,
               instrucciones: nuevoMedicamento.instrucciones,
-              fechaAsignacion
+              fechaAsignacion,
+              adminEmail: this.admin.email, // Agregar el email del admin que asigna la receta
+              diagnostico: this.nuevoDiagnostico // Agregar el diagnóstico específico de esta receta
             };
             const nuevos = [...actuales.filter(m => m.id !== nuevoMedicamento.id), objAsignado];
             const recetas = Array.isArray(paciente.recetasMedicas) ? paciente.recetasMedicas : [];
             const yaExiste = recetas.some(r => r.id === nuevoMedicamento.id && r.fechaAsignacion === objAsignado.fechaAsignacion);
             const nuevasRecetas = yaExiste ? recetas : [...recetas, objAsignado];
             
-            // Guardar también el diagnóstico del paciente
-            const diagnosticosActuales = Array.isArray(paciente.diagnosticos) ? paciente.diagnosticos : [];
-            const diagnosticosNuevos = this.nuevoDiagnostico.filter(d => !diagnosticosActuales.includes(d));
-            
             await updateDoc(pacienteRef, {
               medicamentosIndicados: nuevos,
-              recetasMedicas: nuevasRecetas,
-              diagnosticos: [...diagnosticosActuales, ...diagnosticosNuevos] // Agregar diagnósticos sin duplicados
+              recetasMedicas: nuevasRecetas
             });
           }
         }
@@ -1260,7 +1286,9 @@ export default {
             dosisRecomendada: medicamento.dosisRecomendada,
             frecuencia: medicamento.frecuencia,
             instrucciones: medicamento.instrucciones,
-            fechaAsignacion
+            fechaAsignacion,
+            adminEmail: this.admin.email, // Agregar el email del admin que asigna la receta
+            diagnostico: this.nuevoDiagnostico // Agregar el diagnóstico específico de esta receta
           };
           const nuevos = [...actuales.filter(m => m.id !== medicamento.id), objAsignado];
           // --- recetasMedicas ---
@@ -1371,9 +1399,44 @@ export default {
       this.mostrarModalFirma = false;
     },
     
-    onFirmaGuardada(firmaDataURL) {
-      this.firmaGuardada = firmaDataURL;
-      this.mostrarModalFirma = false;
+    async onFirmaGuardada(firmaDataURL) {
+      try {
+        const adminId = this.admin.id;
+        if (!adminId) {
+          alert("No se encontró el ID del admin. Vuelve a iniciar sesión.");
+          return;
+        }
+        // 1. Guardar firma en backend
+        const res = await fetch('http://localhost:4000/firmas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imagen: firmaDataURL })
+        });
+        if (!res.ok) throw new Error('Error al guardar firma en backend');
+        const { id: firmaId } = await res.json();
+        // 2. Guardar firmaId en Firestore
+        await updateDoc(doc(db, "admins", adminId), { firmaId });
+        // 3. Actualizar vista previa
+        await this.cargarFirmaAdmin(firmaId);
+        this.mostrarModalFirma = false;
+        alert("✅ Firma guardada correctamente");
+      } catch (error) {
+        alert("❌ Error al guardar la firma");
+        console.error('Error al guardar firma:', error);
+      }
+    },
+    async cargarFirmaAdmin(firmaId) {
+      if (!firmaId) {
+        this.firmaGuardada = null;
+        return;
+      }
+      const res = await fetch(`http://localhost:4000/firmas/${firmaId}`);
+      if (res.ok) {
+        const { imagen } = await res.json();
+        this.firmaGuardada = imagen;
+      } else {
+        this.firmaGuardada = null;
+      }
     },
     
     eliminarFirma() {
