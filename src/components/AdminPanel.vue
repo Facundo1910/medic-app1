@@ -876,7 +876,10 @@ export default {
       console.log('Pacientes cargados:', this.pacientes);
 
       if (this.admin && this.admin.firmaId) {
+        console.log('🔍 Cargando firma en mounted:', this.admin.firmaId);
         await this.cargarFirmaAdmin(this.admin.firmaId);
+      } else {
+        console.log('❌ No hay firmaId para cargar:', this.admin);
       }
     } catch (e) {
       console.error("Error al cargar datos:", e);
@@ -1437,16 +1440,22 @@ export default {
       }
     },
     async cargarFirmaAdmin(firmaId) {
+      console.log('🔍 cargarFirmaAdmin llamado con:', firmaId);
       if (!firmaId) {
+        console.log('❌ No hay firmaId');
         this.firmaGuardada = null;
         return;
       }
       try {
         const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
+        console.log('🌐 Haciendo petición a:', `${API_FIRMAS}/${firmaId}`);
         const res = await fetch(`${API_FIRMAS}/${firmaId}`);
+        console.log('📡 Respuesta de API:', res.status, res.ok);
         if (res.ok) {
           const { imagen } = await res.json();
+          console.log('📦 Imagen recibida, length:', imagen ? imagen.length : 0);
           this.firmaGuardada = imagen;
+          console.log('✅ firmaGuardada establecida');
         } else {
           // Si no encuentra la firma, intentar con un ID válido de MongoDB
           console.log('🔄 Intentando con ID válido de MongoDB...');
@@ -1454,6 +1463,7 @@ export default {
           const res2 = await fetch(`${API_FIRMAS}/${firmaIdValido}`);
           if (res2.ok) {
             const { imagen: imagenValida } = await res2.json();
+            console.log('📦 Imagen válida recibida, length:', imagenValida ? imagenValida.length : 0);
             this.firmaGuardada = imagenValida;
             // Actualizar el firmaId en Firebase
             if (this.admin && this.admin.id) {
@@ -1461,11 +1471,12 @@ export default {
               console.log('✅ firmaId actualizado en Firebase:', firmaIdValido);
             }
           } else {
+            console.log('❌ No se pudo cargar firma válida');
             this.firmaGuardada = null;
           }
         }
       } catch (error) {
-        console.error('Error al cargar firma:', error);
+        console.error('❌ Error al cargar firma:', error);
         this.firmaGuardada = null;
       }
     },
