@@ -157,7 +157,8 @@ export default {
         const canvas = this.$refs.signatureCanvas;
         const firmaDataURL = canvas.toDataURL('image/png');
         // Enviar la firma al backend de MongoDB
-        const response = await fetch('http://localhost:4000/firmas', {
+        const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || 'http://localhost:4000/firmas';
+        const response = await fetch(API_FIRMAS, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ imagen: firmaDataURL })

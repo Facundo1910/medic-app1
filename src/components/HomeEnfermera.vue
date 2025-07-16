@@ -268,7 +268,8 @@ import SignosVitalesForm from './commons/SignosVitalesForm.vue';
 async function obtenerFirmaImgDePaciente(paciente) {
   if (paciente.firmaId) {
     try {
-      const res = await fetch(`http://localhost:4000/firmas/${paciente.firmaId}`);
+      const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || 'http://localhost:4000/firmas';
+      const res = await fetch(`${API_FIRMAS}/${paciente.firmaId}`);
       if (res.ok) {
         const data = await res.json();
         return data.imagen; // base64

@@ -58,7 +58,8 @@ export default {
       const usuario = JSON.parse(usuarioData);
       if (usuario.firmaId) {
         try {
-          const res = await fetch(`http://localhost:4000/firmas/${usuario.firmaId}`);
+          const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || 'http://localhost:4000/firmas';
+          const res = await fetch(`${API_FIRMAS}/${usuario.firmaId}`);
           if (res.ok) {
             const data = await res.json();
             this.firmaUrl = data.imagen;
