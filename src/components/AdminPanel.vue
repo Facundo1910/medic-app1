@@ -1414,8 +1414,10 @@ export default {
           body: JSON.stringify({ imagen: firmaDataURL })
         });
         if (!res.ok) throw new Error('Error al guardar firma en backend');
-        const { id: firmaId } = await res.json();
+        const responseData = await res.json();
+        const { id: firmaId } = responseData;
         console.log('🆔 ID de firma recibido de API:', firmaId);
+        console.log('📦 Respuesta completa de API:', responseData);
         await updateDoc(doc(db, "admins", adminId), { firmaId });
         console.log('💾 firmaId guardado en Firestore:', firmaId);
         await this.cargarFirmaAdmin(firmaId);
