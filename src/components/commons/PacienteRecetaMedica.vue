@@ -54,24 +54,49 @@ export default {
   async mounted() {
     // Buscar la firma del admin/médico que asignó la receta
     try {
-      // Obtener todos los admins para buscar el que tenga firma
-      const { collection, getDocs } = await import('firebase/firestore');
-      const { db } = await import('@/firebase');
-      
-      const adminsRef = collection(db, "admins");
-      const querySnapshot = await getDocs(adminsRef);
-      
-      // Buscar el primer admin que tenga firmaId
-      for (const doc of querySnapshot.docs) {
-        const adminData = doc.data();
-        if (adminData.firmaId) {
-          const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
-          const res = await fetch(`${API_FIRMAS}/${adminData.firmaId}`);
-          if (res.ok) {
-            const data = await res.json();
-            this.firmaUrl = data.imagen;
-            break; // Usar la primera firma encontrada
+      // Primero intentar obtener el firmaId del localStorage (más actualizado)
+      let firmaId = null;
+      try {
+        const usuarioData = localStorage.getItem('usuario');
+        if (usuarioData) {
+          const usuario = JSON.parse(usuarioData);
+          if (usuario.rol === 'admin' && usuario.firmaId) {
+            firmaId = usuario.firmaId;
+            console.log('✅ Usando firmaId del localStorage para preview:', firmaId);
           }
+        }
+      } catch (e) {
+        console.log('❌ Error al leer localStorage:', e);
+      }
+      
+      // Si no hay firmaId en localStorage, buscar en Firestore
+      if (!firmaId) {
+        console.log('🔍 Buscando firmaId en Firestore para preview...');
+        const { collection, getDocs } = await import('firebase/firestore');
+        const { db } = await import('@/firebase');
+        
+        const adminsRef = collection(db, "admins");
+        const querySnapshot = await getDocs(adminsRef);
+        
+        // Buscar el primer admin que tenga firmaId
+        for (const doc of querySnapshot.docs) {
+          const adminData = doc.data();
+          if (adminData.firmaId) {
+            firmaId = adminData.firmaId;
+            console.log('✅ Usando firmaId de Firestore para preview:', firmaId);
+            break;
+          }
+        }
+      }
+      
+      // Cargar la firma usando el firmaId encontrado
+      if (firmaId) {
+        const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
+        const res = await fetch(`${API_FIRMAS}/${firmaId}`);
+        if (res.ok) {
+          const data = await res.json();
+          this.firmaUrl = data.imagen;
+          console.log('✅ Firma cargada para preview');
         }
       }
     } catch (e) {

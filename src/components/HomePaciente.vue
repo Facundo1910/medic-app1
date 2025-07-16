@@ -463,26 +463,46 @@ export default {
         alert('No se puede encontrar el médico administrador asociado a esta receta. Contacta al administrador.');
         return;
       }
-      // Buscar el documento del admin por email
-      const q = firestoreQuery(firestoreCollection(db, "admins"), firestoreWhere("email", "==", adminEmail));
-      const querySnapshot = await getDocs(q);
-      if (querySnapshot.empty) {
-        alert('No se encontró el médico administrador en la base de datos. Contacta al administrador.');
-        return;
+      
+      // Primero intentar obtener el firmaId del localStorage (más actualizado)
+      let firmaId = null;
+      try {
+        const usuarioData = localStorage.getItem('usuario');
+        if (usuarioData) {
+          const usuario = JSON.parse(usuarioData);
+          if (usuario.rol === 'admin' && usuario.email === adminEmail && usuario.firmaId) {
+            firmaId = usuario.firmaId;
+            console.log('✅ Usando firmaId del localStorage:', firmaId);
+          }
+        }
+      } catch (e) {
+        console.log('❌ Error al leer localStorage:', e);
       }
-      const adminDoc = querySnapshot.docs[0];
-      const adminData = adminDoc.data();
+      
+      // Si no hay firmaId en localStorage, buscar en Firestore
+      if (!firmaId) {
+        console.log('🔍 Buscando firmaId en Firestore...');
+        const q = firestoreQuery(firestoreCollection(db, "admins"), firestoreWhere("email", "==", adminEmail));
+        const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) {
+          alert('No se encontró el médico administrador en la base de datos. Contacta al administrador.');
+          return;
+        }
+        const adminDoc = querySnapshot.docs[0];
+        const adminData = adminDoc.data();
+        firmaId = adminData.firmaId;
+        console.log('✅ Usando firmaId de Firestore:', firmaId);
+      }
       
       // Buscar la firma del admin usando firmaId
-      console.log('🔍 Buscando firma para admin:', adminData);
-      if (adminData.firmaId) {
-        console.log('✅ Admin tiene firmaId:', adminData.firmaId);
+      if (firmaId) {
+        console.log('✅ Admin tiene firmaId:', firmaId);
         try {
           const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
           
           // Intentar primero con el firmaId actual
-          console.log('🌐 Haciendo petición a:', `${API_FIRMAS}/${adminData.firmaId}`);
-          const res = await fetch(`${API_FIRMAS}/${adminData.firmaId}`);
+          console.log('🌐 Haciendo petición a:', `${API_FIRMAS}/${firmaId}`);
+          const res = await fetch(`${API_FIRMAS}/${firmaId}`);
           console.log('📡 Respuesta de API:', res.status, res.ok);
           
           if (res.ok) {
