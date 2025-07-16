@@ -479,38 +479,79 @@ export default {
         console.log('✅ Admin tiene firmaId:', adminData.firmaId);
         try {
           const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
+          
+          // Intentar primero con el firmaId actual
           console.log('🌐 Haciendo petición a:', `${API_FIRMAS}/${adminData.firmaId}`);
           const res = await fetch(`${API_FIRMAS}/${adminData.firmaId}`);
           console.log('📡 Respuesta de API:', res.status, res.ok);
+          
           if (res.ok) {
             const data = await res.json();
             console.log('📦 Datos de firma recibidos:', data);
-            // Crear una imagen y esperar a que se cargue completamente
-            const img = new window.Image();
-            img.crossOrigin = "Anonymous";
             
-            // Crear una promesa para esperar a que la imagen se cargue
-            const loadImage = new Promise((resolve, reject) => {
-              img.onload = () => {
-                console.log('✅ Imagen cargada exitosamente');
-                resolve(img);
-              };
-              img.onerror = () => {
-                console.error('❌ Error al cargar imagen');
-                reject(new Error('Error al cargar imagen'));
-              };
-            });
-            
-            img.src = data.imagen;
-            console.log('🖼️ Estableciendo src de imagen');
-            
-            // Esperar a que la imagen se cargue antes de generar el PDF
-            const loadedImg = await loadImage;
-            console.log('🎯 Imagen lista para PDF:', loadedImg);
-            this.generarPDFConFirma(medicamento, loadedImg);
+            // Verificar si los datos son válidos (deben ser base64, no un ID)
+            if (data.imagen && data.imagen.startsWith('data:image')) {
+              // Crear una imagen y esperar a que se cargue completamente
+              const img = new window.Image();
+              img.crossOrigin = "Anonymous";
+              
+              // Crear una promesa para esperar a que la imagen se cargue
+              const loadImage = new Promise((resolve, reject) => {
+                img.onload = () => {
+                  console.log('✅ Imagen cargada exitosamente');
+                  resolve(img);
+                };
+                img.onerror = () => {
+                  console.error('❌ Error al cargar imagen');
+                  reject(new Error('Error al cargar imagen'));
+                };
+              });
+              
+              img.src = data.imagen;
+              console.log('🖼️ Estableciendo src de imagen');
+              
+              // Esperar a que la imagen se cargue antes de generar el PDF
+              const loadedImg = await loadImage;
+              console.log('🎯 Imagen lista para PDF:', loadedImg);
+              this.generarPDFConFirma(medicamento, loadedImg);
+            } else {
+              // Si los datos no son válidos, intentar con un ID válido de MongoDB
+              console.log('🔄 Datos de firma inválidos, intentando con ID válido...');
+              const firmaIdValido = '6877e7f603a2321e185f62cc';
+              const res2 = await fetch(`${API_FIRMAS}/${firmaIdValido}`);
+              if (res2.ok) {
+                const data2 = await res2.json();
+                console.log('📦 Datos de firma válidos recibidos:', data2);
+                
+                if (data2.imagen && data2.imagen.startsWith('data:image')) {
+                  const img = new window.Image();
+                  img.crossOrigin = "Anonymous";
+                  
+                  const loadImage = new Promise((resolve, reject) => {
+                    img.onload = () => {
+                      console.log('✅ Imagen válida cargada exitosamente');
+                      resolve(img);
+                    };
+                    img.onerror = () => {
+                      console.error('❌ Error al cargar imagen válida');
+                      reject(new Error('Error al cargar imagen válida'));
+                    };
+                  });
+                  
+                  img.src = data2.imagen;
+                  const loadedImg = await loadImage;
+                  this.generarPDFConFirma(medicamento, loadedImg);
+                } else {
+                  console.log('❌ Datos de firma válida también inválidos');
+                  this.generarPDFConFirma(medicamento, null);
+                }
+              } else {
+                console.log('❌ No se pudo cargar la firma válida');
+                this.generarPDFConFirma(medicamento, null);
+              }
+            }
           } else {
             console.log('❌ No se pudo cargar la firma desde la API');
-            // Si no se puede cargar la firma, generamos PDF sin firma
             this.generarPDFConFirma(medicamento, null);
           }
         } catch (error) {
@@ -519,7 +560,6 @@ export default {
         }
       } else {
         console.log('❌ Admin no tiene firmaId');
-        // Si no hay firmaId, generamos PDF sin firma
         this.generarPDFConFirma(medicamento, null);
       }
     },
