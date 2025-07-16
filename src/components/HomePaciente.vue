@@ -471,23 +471,35 @@ export default {
         return;
       }
       const adminDoc = querySnapshot.docs[0];
-      const firmaUrl = adminDoc.data().firmaUrl;
+      const adminData = adminDoc.data();
       
-      // TEMPORAL: La firma no es obligatoria por el momento
-      if (firmaUrl) {
-        // Si hay firma, la usamos
-        const img = new window.Image();
-        img.crossOrigin = "Anonymous";
-        img.src = firmaUrl;
-        img.onload = () => {
-          this.generarPDFConFirma(medicamento, img);
-        };
-        img.onerror = () => {
-          // Si falla cargar la firma, generamos PDF sin firma
+      // Buscar la firma del admin usando firmaId
+      if (adminData.firmaId) {
+        try {
+          const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
+          const res = await fetch(`${API_FIRMAS}/${adminData.firmaId}`);
+          if (res.ok) {
+            const data = await res.json();
+            const img = new window.Image();
+            img.crossOrigin = "Anonymous";
+            img.src = data.imagen;
+            img.onload = () => {
+              this.generarPDFConFirma(medicamento, img);
+            };
+            img.onerror = () => {
+              // Si falla cargar la firma, generamos PDF sin firma
+              this.generarPDFConFirma(medicamento, null);
+            };
+          } else {
+            // Si no se puede cargar la firma, generamos PDF sin firma
+            this.generarPDFConFirma(medicamento, null);
+          }
+        } catch (error) {
+          console.error('Error al cargar firma:', error);
           this.generarPDFConFirma(medicamento, null);
-        };
+        }
       } else {
-        // Si no hay firma, generamos PDF sin firma
+        // Si no hay firmaId, generamos PDF sin firma
         this.generarPDFConFirma(medicamento, null);
       }
     },
