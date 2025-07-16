@@ -1415,7 +1415,9 @@ export default {
         });
         if (!res.ok) throw new Error('Error al guardar firma en backend');
         const { id: firmaId } = await res.json();
+        console.log('🆔 ID de firma recibido de API:', firmaId);
         await updateDoc(doc(db, "admins", adminId), { firmaId });
+        console.log('💾 firmaId guardado en Firestore:', firmaId);
         await this.cargarFirmaAdmin(firmaId);
         this.mostrarModalFirma = false;
         this.setMensaje('✅ Firma guardada correctamente', 'exito');

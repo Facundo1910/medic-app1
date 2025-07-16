@@ -37,6 +37,9 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: 'No encontrada' });
     }
     console.log('✅ Firma encontrada, imagen length:', firma.imagen ? firma.imagen.length : 0);
+    console.log('🔍 Campos del documento:', Object.keys(firma.toObject()));
+    console.log('🖼️ Tipo de imagen:', typeof firma.imagen);
+    console.log('📄 Primeros 50 caracteres de imagen:', firma.imagen ? firma.imagen.substring(0, 50) : 'null');
     return res.json({ imagen: firma.imagen });
   } else {
     res.setHeader('Allow', ['GET']);
