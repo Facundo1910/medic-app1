@@ -1,4 +1,13 @@
 const { defineConfig } = require('@vue/cli-service')
 module.exports = defineConfig({
-  transpileDependencies: true
+  transpileDependencies: true,
+  devServer: {
+    proxy: {
+      '/api': {
+        target: process.env.VUE_APP_API_FIRMAS || 'https://medic-app1.vercel.app/api/firmas',
+        changeOrigin: true,
+        pathRewrite: { '^/api': '' }
+      }
+    }
+  }
 })
