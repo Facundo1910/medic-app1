@@ -29,9 +29,11 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST') {
     const { imagen } = req.body;
+    console.log('💾 Guardando nueva firma, imagen length:', imagen ? imagen.length : 0);
     if (!imagen) return res.status(400).json({ error: 'Falta la imagen' });
     const nuevaFirma = new Firma({ imagen });
     await nuevaFirma.save();
+    console.log('✅ Firma guardada con ID:', nuevaFirma._id);
     return res.status(201).json({ id: nuevaFirma._id });
   } else {
     res.setHeader('Allow', ['POST']);

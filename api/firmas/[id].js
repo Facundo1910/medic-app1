@@ -29,8 +29,14 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     const { id } = req.query;
+    console.log('🔍 Buscando firma con ID:', id);
     const firma = await Firma.findById(id);
-    if (!firma) return res.status(404).json({ error: 'No encontrada' });
+    console.log('📦 Firma encontrada:', firma ? 'Sí' : 'No');
+    if (!firma) {
+      console.log('❌ Firma no encontrada en MongoDB');
+      return res.status(404).json({ error: 'No encontrada' });
+    }
+    console.log('✅ Firma encontrada, imagen length:', firma.imagen ? firma.imagen.length : 0);
     return res.json({ imagen: firma.imagen });
   } else {
     res.setHeader('Allow', ['GET']);
