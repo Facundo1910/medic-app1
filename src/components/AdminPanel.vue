@@ -1407,7 +1407,7 @@ export default {
           this.setMensaje('No se encontró el ID del admin. Vuelve a iniciar sesión.', 'error');
           return;
         }
-        const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || 'https://medic-app1.vercel.app/api/firmas';
+        const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
         const res = await fetch(API_FIRMAS, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1429,7 +1429,7 @@ export default {
         this.firmaGuardada = null;
         return;
       }
-              const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || 'https://medic-app1.vercel.app/api/firmas';
+              const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
       const res = await fetch(`${API_FIRMAS}/${firmaId}`);
       if (res.ok) {
         const { imagen } = await res.json();
