@@ -474,36 +474,51 @@ export default {
       const adminData = adminDoc.data();
       
       // Buscar la firma del admin usando firmaId
+      console.log('🔍 Buscando firma para admin:', adminData);
       if (adminData.firmaId) {
+        console.log('✅ Admin tiene firmaId:', adminData.firmaId);
         try {
           const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
+          console.log('🌐 Haciendo petición a:', `${API_FIRMAS}/${adminData.firmaId}`);
           const res = await fetch(`${API_FIRMAS}/${adminData.firmaId}`);
+          console.log('📡 Respuesta de API:', res.status, res.ok);
           if (res.ok) {
             const data = await res.json();
+            console.log('📦 Datos de firma recibidos:', data);
             // Crear una imagen y esperar a que se cargue completamente
             const img = new window.Image();
             img.crossOrigin = "Anonymous";
             
             // Crear una promesa para esperar a que la imagen se cargue
             const loadImage = new Promise((resolve, reject) => {
-              img.onload = () => resolve(img);
-              img.onerror = () => reject(new Error('Error al cargar imagen'));
+              img.onload = () => {
+                console.log('✅ Imagen cargada exitosamente');
+                resolve(img);
+              };
+              img.onerror = () => {
+                console.error('❌ Error al cargar imagen');
+                reject(new Error('Error al cargar imagen'));
+              };
             });
             
             img.src = data.imagen;
+            console.log('🖼️ Estableciendo src de imagen');
             
             // Esperar a que la imagen se cargue antes de generar el PDF
             const loadedImg = await loadImage;
+            console.log('🎯 Imagen lista para PDF:', loadedImg);
             this.generarPDFConFirma(medicamento, loadedImg);
           } else {
+            console.log('❌ No se pudo cargar la firma desde la API');
             // Si no se puede cargar la firma, generamos PDF sin firma
             this.generarPDFConFirma(medicamento, null);
           }
         } catch (error) {
-          console.error('Error al cargar firma:', error);
+          console.error('❌ Error al cargar firma:', error);
           this.generarPDFConFirma(medicamento, null);
         }
       } else {
+        console.log('❌ Admin no tiene firmaId');
         // Si no hay firmaId, generamos PDF sin firma
         this.generarPDFConFirma(medicamento, null);
       }
@@ -563,28 +578,39 @@ export default {
       doc.text(`FECHA: ${hoy.toLocaleDateString()}`, 12, 81);
       
       // Firma digital
+      console.log('🖼️ Procesando firma para PDF:', firmaImg);
       if (firmaImg && firmaImg.complete && firmaImg.naturalWidth > 0) {
+        console.log('✅ Firma válida, procesando...');
         try {
           // Crear un canvas para procesar la imagen
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           canvas.width = firmaImg.naturalWidth;
           canvas.height = firmaImg.naturalHeight;
+          console.log('📐 Canvas creado:', canvas.width, 'x', canvas.height);
           
           // Dibujar la imagen en el canvas
           ctx.drawImage(firmaImg, 0, 0);
+          console.log('🎨 Imagen dibujada en canvas');
           
           // Obtener los datos de la imagen como base64
           const imageData = canvas.toDataURL('image/png');
+          console.log('📄 Datos de imagen generados:', imageData.substring(0, 50) + '...');
           
           // Agregar la imagen al PDF
           doc.addImage(imageData, 'PNG', 150, 85, 40, 20);
+          console.log('✅ Firma agregada al PDF');
           doc.text('FIRMA DIGITAL', 150, 110);
         } catch (error) {
-          console.error('Error al agregar firma al PDF:', error);
+          console.error('❌ Error al agregar firma al PDF:', error);
           doc.text('FIRMA Y SELLO', 150, 95);
         }
       } else {
+        console.log('❌ Firma no válida para PDF:', {
+          firmaImg: !!firmaImg,
+          complete: firmaImg?.complete,
+          naturalWidth: firmaImg?.naturalWidth
+        });
         doc.text('FIRMA Y SELLO', 150, 95);
       }
       
