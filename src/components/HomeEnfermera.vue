@@ -265,11 +265,12 @@ import PacienteResumen from './commons/PacienteResumen.vue';
 import MedicacionForm from './commons/MedicacionForm.vue';
 import SignosVitalesForm from './commons/SignosVitalesForm.vue';
 
-async function obtenerFirmaImgDePaciente(paciente) {
-  if (paciente.firmaId) {
+// Cambiar esta función para que reciba el usuario firmante (admin/médico)
+async function obtenerFirmaImgDeUsuario(usuario) {
+  if (usuario.firmaId) {
     try {
-      const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || 'http://localhost:4000/firmas';
-      const res = await fetch(`${API_FIRMAS}/${paciente.firmaId}`);
+      const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || 'https://medic-app1.vercel.app/api/firmas';
+      const res = await fetch(`${API_FIRMAS}/${usuario.firmaId}`);
       if (res.ok) {
         const data = await res.json();
         return data.imagen; // base64
@@ -278,6 +279,9 @@ async function obtenerFirmaImgDePaciente(paciente) {
   }
   return null;
 }
+// Ejemplo de uso:
+// const admin = ... // obtener usuario admin/médico
+// const firmaImg = await obtenerFirmaImgDeUsuario(admin);
 
 export default {
   name: "HomeEnfermera",
@@ -456,7 +460,7 @@ export default {
           // Buscar el canvas del gráfico combinado
           await this.$nextTick();
           const chartCanvas = document.querySelector('.grafico-combinado canvas');
-          const firmaImg = await obtenerFirmaImgDePaciente(paciente);
+          const firmaImg = await obtenerFirmaImgDeUsuario(this.enfermera); // Usar la función para obtener la firma de la enfermera
           const pdfBlob = await generarPDFSignosYMedicaciones(
             chartCanvas,
             paciente.medicaciones || [],

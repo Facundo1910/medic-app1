@@ -181,7 +181,7 @@ export default {
           return;
         }
         // En producción, guardar en el backend
-        const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || 'http://localhost:4000/firmas';
+        const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || 'https://medic-app1.vercel.app/api/firmas';
         const response = await fetch(API_FIRMAS, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

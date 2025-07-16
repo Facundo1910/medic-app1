@@ -1,5 +1,8 @@
 <template>
   <div class="admin-panel">
+    <div v-if="mensajeBanner" :class="['banner-mensaje', mensajeTipo]">
+      {{ mensajeBanner }}
+    </div>
     <div class="contenedor-central">
       <header class="header">
         <div class="logo">🔧 Panel de Administración</div>
@@ -735,11 +738,7 @@ export default {
       mensajes: {},
       procesando: {},
       enfermeras: [],
-      pacientes: [
-        { id: '1', nombre: 'Juan', apellido: 'Pérez', dni: '123' },
-        { id: '2', nombre: 'Ana', apellido: 'García', dni: '456' },
-        { id: '3', nombre: 'Carlos', apellido: 'López', dni: '789' }
-      ],
+      pacientes: [],
       cargandoAsignacion: true,
       enfermeraSeleccionada: null,
       pacientesAsignadosTemp: [],
@@ -794,7 +793,9 @@ export default {
       solicitudesDNI: [],
       cargandoSolicitudesDNI: false,
       mensajesDNI: {},
-      procesandoDNI: {}
+      procesandoDNI: {},
+      mensajeBanner: '',
+      mensajeTipo: 'info'
     };
   },
   computed: {
@@ -1403,25 +1404,23 @@ export default {
       try {
         const adminId = this.admin.id;
         if (!adminId) {
-          alert("No se encontró el ID del admin. Vuelve a iniciar sesión.");
+          this.setMensaje('No se encontró el ID del admin. Vuelve a iniciar sesión.', 'error');
           return;
         }
-        // 1. Guardar firma en backend
-        const res = await fetch('http://localhost:4000/firmas', {
+        const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || 'https://medic-app1.vercel.app/api/firmas';
+        const res = await fetch(API_FIRMAS, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ imagen: firmaDataURL })
         });
         if (!res.ok) throw new Error('Error al guardar firma en backend');
         const { id: firmaId } = await res.json();
-        // 2. Guardar firmaId en Firestore
         await updateDoc(doc(db, "admins", adminId), { firmaId });
-        // 3. Actualizar vista previa
         await this.cargarFirmaAdmin(firmaId);
         this.mostrarModalFirma = false;
-        alert("✅ Firma guardada correctamente");
+        this.setMensaje('✅ Firma guardada correctamente', 'exito');
       } catch (error) {
-        alert("❌ Error al guardar la firma");
+        this.setMensaje('❌ Error al guardar la firma', 'error');
         console.error('Error al guardar firma:', error);
       }
     },
@@ -1430,7 +1429,8 @@ export default {
         this.firmaGuardada = null;
         return;
       }
-      const res = await fetch(`http://localhost:4000/firmas/${firmaId}`);
+              const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || 'https://medic-app1.vercel.app/api/firmas';
+      const res = await fetch(`${API_FIRMAS}/${firmaId}`);
       if (res.ok) {
         const { imagen } = await res.json();
         this.firmaGuardada = imagen;
@@ -1443,6 +1443,7 @@ export default {
       if (confirm('¿Estás seguro de que quieres eliminar tu firma digital?')) {
         this.firmaGuardada = null;
         localStorage.removeItem('medicoFirma');
+        this.setMensaje('Firma eliminada', 'info');
       }
     },
 
@@ -1626,6 +1627,13 @@ export default {
         alert('Error al rechazar la solicitud de cambio de DNI');
       } finally {
         this.procesandoDNI[solicitudId] = false;
+      }
+    },
+    setMensaje(mensaje, tipo = 'info', duracion = 3500) {
+      this.mensajeBanner = mensaje;
+      this.mensajeTipo = tipo;
+      if (duracion > 0) {
+        setTimeout(() => { this.mensajeBanner = ''; }, duracion);
       }
     }
   }
@@ -3097,4 +3105,19 @@ export default {
     font-size: 12px;
   }
 }
+.banner-mensaje {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  z-index: 9999;
+  padding: 16px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 1.1em;
+  transition: all 0.3s;
+}
+.banner-mensaje.info { background: #d1ecf1; color: #0c5460; }
+.banner-mensaje.exito { background: #d4edda; color: #155724; }
+.banner-mensaje.error { background: #f8d7da; color: #721c24; }
 </style> 
