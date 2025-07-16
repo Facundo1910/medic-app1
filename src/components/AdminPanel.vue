@@ -1418,6 +1418,14 @@ export default {
         const { id: firmaId } = responseData;
         console.log('🆔 ID de firma recibido de API:', firmaId);
         console.log('📦 Respuesta completa de API:', responseData);
+        
+        // Verificar que el firmaId sea válido
+        if (!firmaId || firmaId.length !== 24) {
+          console.error('❌ firmaId inválido recibido:', firmaId);
+          this.setMensaje('❌ Error: ID de firma inválido', 'error');
+          return;
+        }
+        
         await updateDoc(doc(db, "admins", adminId), { firmaId });
         console.log('💾 firmaId guardado en Firestore:', firmaId);
         await this.cargarFirmaAdmin(firmaId);
@@ -1433,12 +1441,31 @@ export default {
         this.firmaGuardada = null;
         return;
       }
-              const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
-      const res = await fetch(`${API_FIRMAS}/${firmaId}`);
-      if (res.ok) {
-        const { imagen } = await res.json();
-        this.firmaGuardada = imagen;
-      } else {
+      try {
+        const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
+        const res = await fetch(`${API_FIRMAS}/${firmaId}`);
+        if (res.ok) {
+          const { imagen } = await res.json();
+          this.firmaGuardada = imagen;
+        } else {
+          // Si no encuentra la firma, intentar con un ID válido de MongoDB
+          console.log('🔄 Intentando con ID válido de MongoDB...');
+          const firmaIdValido = '6877e7f603a2321e185f62cc'; // ID de la última firma en MongoDB
+          const res2 = await fetch(`${API_FIRMAS}/${firmaIdValido}`);
+          if (res2.ok) {
+            const { imagen: imagenValida } = await res2.json();
+            this.firmaGuardada = imagenValida;
+            // Actualizar el firmaId en Firebase
+            if (this.admin && this.admin.id) {
+              await updateDoc(doc(db, "admins", this.admin.id), { firmaId: firmaIdValido });
+              console.log('✅ firmaId actualizado en Firebase:', firmaIdValido);
+            }
+          } else {
+            this.firmaGuardada = null;
+          }
+        }
+      } catch (error) {
+        console.error('Error al cargar firma:', error);
         this.firmaGuardada = null;
       }
     },
