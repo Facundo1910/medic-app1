@@ -480,16 +480,21 @@ export default {
           const res = await fetch(`${API_FIRMAS}/${adminData.firmaId}`);
           if (res.ok) {
             const data = await res.json();
+            // Crear una imagen y esperar a que se cargue completamente
             const img = new window.Image();
             img.crossOrigin = "Anonymous";
+            
+            // Crear una promesa para esperar a que la imagen se cargue
+            const loadImage = new Promise((resolve, reject) => {
+              img.onload = () => resolve(img);
+              img.onerror = () => reject(new Error('Error al cargar imagen'));
+            });
+            
             img.src = data.imagen;
-            img.onload = () => {
-              this.generarPDFConFirma(medicamento, img);
-            };
-            img.onerror = () => {
-              // Si falla cargar la firma, generamos PDF sin firma
-              this.generarPDFConFirma(medicamento, null);
-            };
+            
+            // Esperar a que la imagen se cargue antes de generar el PDF
+            const loadedImg = await loadImage;
+            this.generarPDFConFirma(medicamento, loadedImg);
           } else {
             // Si no se puede cargar la firma, generamos PDF sin firma
             this.generarPDFConFirma(medicamento, null);
@@ -557,13 +562,26 @@ export default {
       const hoy = new Date();
       doc.text(`FECHA: ${hoy.toLocaleDateString()}`, 12, 81);
       
-      // Firma digital (TEMPORAL: No obligatoria)
-      if (firmaImg) {
+      // Firma digital
+      if (firmaImg && firmaImg.complete && firmaImg.naturalWidth > 0) {
         try {
-          doc.addImage(firmaImg, 'PNG', 150, 85, 40, 20);
+          // Crear un canvas para procesar la imagen
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = firmaImg.naturalWidth;
+          canvas.height = firmaImg.naturalHeight;
+          
+          // Dibujar la imagen en el canvas
+          ctx.drawImage(firmaImg, 0, 0);
+          
+          // Obtener los datos de la imagen como base64
+          const imageData = canvas.toDataURL('image/png');
+          
+          // Agregar la imagen al PDF
+          doc.addImage(imageData, 'PNG', 150, 85, 40, 20);
           doc.text('FIRMA DIGITAL', 150, 110);
         } catch (error) {
-          console.error('Error al agregar firma:', error);
+          console.error('Error al agregar firma al PDF:', error);
           doc.text('FIRMA Y SELLO', 150, 95);
         }
       } else {
