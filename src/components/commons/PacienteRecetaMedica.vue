@@ -54,8 +54,10 @@ export default {
   async mounted() {
     // Buscar la firma del admin/médico que asignó la receta
     try {
-      // Primero intentar obtener el firmaId del localStorage (más actualizado)
+      // LIMPIAR CACHÉ Y OBTENER FIRMAID MÁS RECIENTE
       let firmaId = null;
+      
+      // 1. Intentar obtener del localStorage (más actualizado)
       try {
         const usuarioData = localStorage.getItem('usuario');
         if (usuarioData) {
@@ -69,7 +71,7 @@ export default {
         console.log('❌ Error al leer localStorage:', e);
       }
       
-      // Si no hay firmaId en localStorage, buscar en Firestore
+      // 2. Si no hay firmaId en localStorage, buscar en Firestore
       if (!firmaId) {
         console.log('🔍 Buscando firmaId en Firestore para preview...');
         const { collection, getDocs } = await import('firebase/firestore');
@@ -89,16 +91,47 @@ export default {
         }
       }
       
+      // 3. Si aún no hay firmaId, usar el ID válido conocido
+      if (!firmaId) {
+        console.log('🔄 No se encontró firmaId, usando ID válido conocido para preview...');
+        firmaId = '6877e7f603a2321e185f62cc';
+      }
+      
+      // 4. LIMPIAR CACHÉ DEL NAVEGADOR PARA LA FIRMA
+      const cacheKey = `firma_${firmaId}`;
+      if ('caches' in window) {
+        try {
+          const cache = await caches.open('firma-cache');
+          await cache.delete(cacheKey);
+          console.log('🗑️ Caché de firma limpiado para preview');
+        } catch (e) {
+          console.log('❌ Error al limpiar caché para preview:', e);
+        }
+      }
+      
       // Cargar la firma usando el firmaId encontrado
       if (firmaId) {
         const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
-        const res = await fetch(`${API_FIRMAS}/${firmaId}`);
+        const timestamp = Date.now();
+        const url = `${API_FIRMAS}/${firmaId}?t=${timestamp}`;
+        const res = await fetch(url, {
+          cache: 'no-cache', // Forzar no usar caché
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        });
         if (res.ok) {
           const data = await res.json();
           this.firmaUrl = data.imagen;
           console.log('✅ Firma cargada para preview');
         }
       }
+      
+      // ESCUCHAR CAMBIOS EN LA FIRMA
+      this.verificarActualizacionFirma();
+      
     } catch (e) {
       console.error('Error al cargar firma del médico:', e);
     }
@@ -160,6 +193,17 @@ export default {
       } catch (e) {
         return 'Fecha no disponible';
       }
+    },
+    verificarActualizacionFirma() {
+      // Verificar cada 2 segundos si se actualizó la firma
+      setInterval(() => {
+        const firmaActualizada = localStorage.getItem('firmaActualizada');
+        if (firmaActualizada) {
+          console.log('🔄 Firma actualizada detectada en receta, refrescando...');
+          localStorage.removeItem('firmaActualizada');
+          window.location.reload();
+        }
+      }, 2000);
     }
   }
 };

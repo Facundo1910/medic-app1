@@ -625,6 +625,10 @@
               <button v-if="firmaGuardada || tieneFirmaMedico" @click="eliminarFirma" class="btn-eliminar-firma">
                 🗑️ Eliminar Firma
               </button>
+              
+              <button v-if="mostrarBotonActualizarFirma" @click="forzarActualizacionFirma" class="btn-actualizar-firma">
+                🔄 Actualizar Firma en PDFs
+              </button>
             </div>
           </div>
           
@@ -795,7 +799,9 @@ export default {
       mensajesDNI: {},
       procesandoDNI: {},
       mensajeBanner: '',
-      mensajeTipo: 'info'
+      mensajeTipo: 'info',
+      // Variables para firma
+      mostrarBotonActualizarFirma: false
     };
   },
   computed: {
@@ -1429,20 +1435,33 @@ export default {
           return;
         }
         
+        // ACTUALIZAR EN FIRESTORE PRIMERO
         await updateDoc(doc(db, "admins", adminId), { firmaId });
         console.log('💾 firmaId guardado en Firestore:', firmaId);
         
-        // Actualizar el objeto admin local
+        // ACTUALIZAR EL OBJETO ADMIN LOCAL
         this.admin.firmaId = firmaId;
         
-        // Actualizar localStorage
+        // ACTUALIZAR LOCALSTORAGE CON FORZADO
         const usuarioActual = JSON.parse(localStorage.getItem('usuario'));
         usuarioActual.firmaId = firmaId;
         localStorage.setItem('usuario', JSON.stringify(usuarioActual));
         
+        // FORZAR ACTUALIZACIÓN INMEDIATA
+        localStorage.setItem('firmaActualizada', Date.now().toString());
+        
+        // CARGAR LA FIRMA INMEDIATAMENTE
         await this.cargarFirmaAdmin(firmaId);
+        
+        // CERRAR MODAL Y MOSTRAR MENSAJE
         this.mostrarModalFirma = false;
-        this.setMensaje('✅ Firma guardada correctamente', 'exito');
+        this.setMensaje('✅ Firma guardada correctamente. Recargando página para aplicar cambios...', 'exito');
+        
+        // FORZAR RELOAD INMEDIATO PARA APLICAR CAMBIOS
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+        
       } catch (error) {
         this.setMensaje('❌ Error al guardar la firma', 'error');
         console.error('Error al guardar firma:', error);
@@ -1457,8 +1476,17 @@ export default {
       }
       try {
         const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
-        console.log('🌐 Haciendo petición a:', `${API_FIRMAS}/${firmaId}`);
-        const res = await fetch(`${API_FIRMAS}/${firmaId}`);
+        const timestamp = Date.now();
+        const url = `${API_FIRMAS}/${firmaId}?t=${timestamp}`;
+        console.log('🌐 Haciendo petición a:', url);
+        const res = await fetch(url, {
+          cache: 'no-cache', // Forzar no usar caché
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        });
         console.log('📡 Respuesta de API:', res.status, res.ok);
         if (res.ok) {
           const { imagen } = await res.json();
@@ -1469,7 +1497,16 @@ export default {
           // Si no encuentra la firma, intentar con un ID válido de MongoDB
           console.log('🔄 Intentando con ID válido de MongoDB...');
           const firmaIdValido = '6877e7f603a2321e185f62cc'; // ID de la última firma en MongoDB
-          const res2 = await fetch(`${API_FIRMAS}/${firmaIdValido}`);
+          const timestamp2 = Date.now();
+          const url2 = `${API_FIRMAS}/${firmaIdValido}?t=${timestamp2}`;
+          const res2 = await fetch(url2, {
+            cache: 'no-cache', // Forzar no usar caché
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            }
+          });
           if (res2.ok) {
             const { imagen: imagenValida } = await res2.json();
             console.log('📦 Imagen válida recibida, length:', imagenValida ? imagenValida.length : 0);
@@ -1508,12 +1545,31 @@ export default {
           localStorage.setItem('usuario', JSON.stringify(usuarioActual));
           
           this.firmaGuardada = null;
-          this.setMensaje('✅ Firma eliminada correctamente', 'info');
+          this.setMensaje('✅ Firma eliminada correctamente. Recargando página para aplicar cambios...', 'info');
+          
+          // FORZAR RELOAD INMEDIATO PARA APLICAR CAMBIOS
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
         } catch (error) {
           console.error('Error al eliminar firma:', error);
           this.setMensaje('❌ Error al eliminar la firma', 'error');
         }
       }
+    },
+    
+    forzarActualizacionFirma() {
+      // Forzar actualización de firma en todos los componentes
+      localStorage.setItem('firmaActualizada', Date.now().toString());
+      this.setMensaje('🔄 Actualizando firma en todos los PDFs...', 'info');
+      
+      // Ocultar el botón después de usarlo
+      this.mostrarBotonActualizarFirma = false;
+      
+      // Recargar la página después de 1 segundo
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     },
 
     // Métodos para configuración
@@ -2893,6 +2949,22 @@ export default {
 
 .btn-eliminar-firma:hover {
   background: #c82333;
+}
+
+.btn-actualizar-firma {
+  background: #17a2b8;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.2s;
+  margin-left: 8px;
+}
+
+.btn-actualizar-firma:hover {
+  background: #138496;
 }
 
 .firma-preview {

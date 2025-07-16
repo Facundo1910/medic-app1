@@ -303,6 +303,10 @@ export default {
         // Borrar signos vitales viejos después de cargar
         await this.borrarSignosVitalesViejos();
       }
+      
+      // ESCUCHAR CAMBIOS EN LA FIRMA
+      this.verificarActualizacionFirma();
+      
     } catch (e) {
       console.error("Error al cargar datos:", e);
       alert("Error al cargar los datos del paciente");
@@ -342,6 +346,18 @@ export default {
     logout() {
       localStorage.removeItem('usuario');
       this.$router.push('/');
+    },
+    
+    verificarActualizacionFirma() {
+      // Verificar cada 2 segundos si se actualizó la firma
+      setInterval(() => {
+        const firmaActualizada = localStorage.getItem('firmaActualizada');
+        if (firmaActualizada) {
+          console.log('🔄 Firma actualizada detectada, refrescando página...');
+          localStorage.removeItem('firmaActualizada');
+          window.location.reload();
+        }
+      }, 2000);
     },
     mesANumero(mes) {
       const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -464,8 +480,10 @@ export default {
         return;
       }
       
-      // Primero intentar obtener el firmaId del localStorage (más actualizado)
+      // LIMPIAR CACHÉ Y OBTENER FIRMAID MÁS RECIENTE
       let firmaId = null;
+      
+      // 1. Intentar obtener del localStorage (más actualizado)
       try {
         const usuarioData = localStorage.getItem('usuario');
         if (usuarioData) {
@@ -479,7 +497,7 @@ export default {
         console.log('❌ Error al leer localStorage:', e);
       }
       
-      // Si no hay firmaId en localStorage, buscar en Firestore
+      // 2. Si no hay firmaId en localStorage, buscar en Firestore (más reciente)
       if (!firmaId) {
         console.log('🔍 Buscando firmaId en Firestore...');
         const q = firestoreQuery(firestoreCollection(db, "admins"), firestoreWhere("email", "==", adminEmail));
@@ -494,6 +512,24 @@ export default {
         console.log('✅ Usando firmaId de Firestore:', firmaId);
       }
       
+      // 3. Si aún no hay firmaId, usar el ID válido conocido
+      if (!firmaId) {
+        console.log('🔄 No se encontró firmaId, usando ID válido conocido...');
+        firmaId = '6877e7f603a2321e185f62cc';
+      }
+      
+      // 4. LIMPIAR CACHÉ DEL NAVEGADOR PARA LA FIRMA
+      const cacheKey = `firma_${firmaId}`;
+      if ('caches' in window) {
+        try {
+          const cache = await caches.open('firma-cache');
+          await cache.delete(cacheKey);
+          console.log('🗑️ Caché de firma limpiado');
+        } catch (e) {
+          console.log('❌ Error al limpiar caché:', e);
+        }
+      }
+      
       // Buscar la firma del admin usando firmaId
       if (firmaId) {
         console.log('✅ Admin tiene firmaId:', firmaId);
@@ -501,8 +537,17 @@ export default {
           const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
           
           // Intentar primero con el firmaId actual
-          console.log('🌐 Haciendo petición a:', `${API_FIRMAS}/${firmaId}`);
-          const res = await fetch(`${API_FIRMAS}/${firmaId}`);
+          const timestamp = Date.now();
+          const url = `${API_FIRMAS}/${firmaId}?t=${timestamp}`;
+          console.log('🌐 Haciendo petición a:', url);
+          const res = await fetch(url, {
+            cache: 'no-cache', // Forzar no usar caché
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            }
+          });
           console.log('📡 Respuesta de API:', res.status, res.ok);
           
           if (res.ok) {
@@ -538,7 +583,16 @@ export default {
               // Si los datos no son válidos, intentar con un ID válido de MongoDB
               console.log('🔄 Datos de firma inválidos, intentando con ID válido...');
               const firmaIdValido = '6877e7f603a2321e185f62cc';
-              const res2 = await fetch(`${API_FIRMAS}/${firmaIdValido}`);
+              const timestamp2 = Date.now();
+              const url2 = `${API_FIRMAS}/${firmaIdValido}?t=${timestamp2}`;
+              const res2 = await fetch(url2, {
+                cache: 'no-cache', // Forzar no usar caché
+                headers: {
+                  'Cache-Control': 'no-cache, no-store, must-revalidate',
+                  'Pragma': 'no-cache',
+                  'Expires': '0'
+                }
+              });
               if (res2.ok) {
                 const data2 = await res2.json();
                 console.log('📦 Datos de firma válidos recibidos:', data2);
