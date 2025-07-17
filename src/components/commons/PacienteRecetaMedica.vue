@@ -142,8 +142,17 @@ export default {
         });
         if (res.ok) {
           const data = await res.json();
-          this.firmaUrl = data.imagen;
-          console.log('✅ Firma cargada para preview');
+          console.log('📦 Datos de firma para preview:', data);
+          console.log('🔍 Tipo de imagen para preview:', typeof data.imagen);
+          console.log('📄 Primeros 100 caracteres de imagen para preview:', data.imagen ? data.imagen.substring(0, 100) : 'null');
+          
+          if (data.imagen && data.imagen.startsWith('data:image')) {
+            this.firmaUrl = data.imagen;
+            console.log('✅ Firma cargada para preview');
+          } else {
+            console.log('❌ Datos de firma inválidos para preview');
+            this.firmaUrl = null;
+          }
         } else if (res.status === 404) {
           // Si el firmaId no existe en MongoDB, limpiarlo
           console.log('❌ firmaId no existe en MongoDB para preview');

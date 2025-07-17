@@ -607,6 +607,8 @@ export default {
           if (res.ok) {
             const data = await res.json();
             console.log('📦 Datos de firma recibidos:', data);
+            console.log('🔍 Tipo de imagen:', typeof data.imagen);
+            console.log('📄 Primeros 100 caracteres de imagen:', data.imagen ? data.imagen.substring(0, 100) : 'null');
             
             // Verificar si los datos son válidos (deben ser base64, no un ID)
             if (data.imagen && data.imagen.startsWith('data:image')) {
