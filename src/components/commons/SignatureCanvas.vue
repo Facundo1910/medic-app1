@@ -190,12 +190,15 @@ export default {
           usuario = JSON.parse(usuarioData);
           firmaId = usuario.firmaId || null;
         }
+        console.log('🔍 Usuario encontrado:', usuario ? usuario.rol : 'No encontrado');
+        console.log('🔍 firmaId actual:', firmaId);
+        console.log('🔍 Usuario ID:', usuario ? usuario.id : 'No ID');
         let response, data;
         if (firmaId) {
           // Hacer PUT para sobrescribir la firma existente
-          console.log(🔄PUT - Enviando firma existente, firmaId:', firmaId);
+          console.log('🔄PUT - Enviando firma existente, firmaId:', firmaId);
           console.log('📦 PUT - Tipo de imagen a enviar:', typeof firmaDataURL);
-          console.log(📄 PUT - Primeros100 caracteres:', firmaDataURL.substring(0, 100));
+          console.log('📄 PUT - Primeros 100 caracteres:', firmaDataURL.substring(0, 100));
           response = await fetch(`${API_FIRMAS}/${firmaId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -203,11 +206,12 @@ export default {
           });
           if (!response.ok) throw new Error('Error al actualizar firma en MongoDB');
           data = await response.json();
+          console.log('✅ PUT - Respuesta del backend:', data);
         } else {
           // Hacer POST para crear una nueva firma
-          console.log(🆕 POST - Creando nueva firma');
-          console.log(📦 POST - Tipo de imagen a enviar:', typeof firmaDataURL);
-          console.log('📄 POST - Primeros100 caracteres:', firmaDataURL.substring(0, 100));
+          console.log('🆕 POST - Creando nueva firma');
+          console.log('📦 POST - Tipo de imagen a enviar:', typeof firmaDataURL);
+          console.log('📄 POST - Primeros 100 caracteres:', firmaDataURL.substring(0, 100));
           response = await fetch(API_FIRMAS, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -215,6 +219,7 @@ export default {
           });
           if (!response.ok) throw new Error('Error al guardar en MongoDB');
           data = await response.json();
+          console.log('✅ POST - Respuesta del backend:', data);
         }
         this.mensaje = '✅ Firma guardada en MongoDB (ID: ' + data.id + ')';
         this.mensajeTipo = 'exito';
