@@ -46,7 +46,7 @@
         <PacienteInfo :paciente="pacienteActual" />
         <PacienteDiagnosticos :diagnosticos="diagnosticosVisibles" />
         <PacienteHistorialMedicacion :historial="pacienteActual.medicaciones || []" />
-        <PacienteResumen :diagnosticos="pacienteActual.diagnosticos || []" :historial="pacienteActual.medicaciones || []" />
+        <PacienteResumen :diagnosticos="diagnosticosVisibles" :historial="pacienteActual.medicaciones || []" />
         
         <!-- Sección de medicamentos indicados por el administrador -->
         <section class="medicamentos-indicados card">
