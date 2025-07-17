@@ -91,10 +91,10 @@ export default {
         }
       }
       
-      // 3. Si aún no hay firmaId, usar el ID válido conocido
+      // 3. Si no hay firmaId, no podemos mostrar firma
       if (!firmaId) {
-        console.log('🔄 No se encontró firmaId, usando ID válido conocido para preview...');
-        firmaId = '6877e7f603a2321e185f62cc';
+        console.log('❌ No se encontró firmaId para preview');
+        return;
       }
       
       // 4. LIMPIAR CACHÉ DEL NAVEGADOR PARA LA FIRMA
@@ -107,6 +107,24 @@ export default {
         } catch (e) {
           console.log('❌ Error al limpiar caché para preview:', e);
         }
+      }
+      
+      // 5. FORZAR ACTUALIZACIÓN INMEDIATA SI SE DETECTA CAMBIO
+      const firmaActualizada = localStorage.getItem('firmaActualizada');
+      if (firmaActualizada) {
+        console.log('🔄 Firma actualizada detectada en preview, forzando recarga...');
+        localStorage.removeItem('firmaActualizada');
+        // LIMPIAR TODO EL CACHÉ
+        if ('caches' in window) {
+          caches.keys().then(names => {
+            names.forEach(name => {
+              caches.delete(name);
+            });
+          });
+        }
+        // FORZAR RELOAD
+        window.location.href = window.location.href + '?t=' + Date.now();
+        return;
       }
       
       // Cargar la firma usando el firmaId encontrado
@@ -126,6 +144,10 @@ export default {
           const data = await res.json();
           this.firmaUrl = data.imagen;
           console.log('✅ Firma cargada para preview');
+        } else if (res.status === 404) {
+          // Si el firmaId no existe en MongoDB, limpiarlo
+          console.log('❌ firmaId no existe en MongoDB para preview');
+          this.firmaUrl = null;
         }
       }
       
@@ -195,15 +217,24 @@ export default {
       }
     },
     verificarActualizacionFirma() {
-      // Verificar cada 2 segundos si se actualizó la firma
+      // Verificar cada 1 segundo si se actualizó la firma
       setInterval(() => {
         const firmaActualizada = localStorage.getItem('firmaActualizada');
         if (firmaActualizada) {
           console.log('🔄 Firma actualizada detectada en receta, refrescando...');
           localStorage.removeItem('firmaActualizada');
-          window.location.reload();
+          // LIMPIAR TODO EL CACHÉ ANTES DE RECARGAR
+          if ('caches' in window) {
+            caches.keys().then(names => {
+              names.forEach(name => {
+                caches.delete(name);
+              });
+            });
+          }
+          // FORZAR RELOAD CON PARÁMETRO ÚNICO
+          window.location.href = window.location.href + '?t=' + Date.now();
         }
-      }, 2000);
+      }, 1000);
     }
   }
 };

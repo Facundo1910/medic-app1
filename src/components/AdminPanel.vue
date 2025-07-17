@@ -1453,14 +1453,15 @@ export default {
         // CARGAR LA FIRMA INMEDIATAMENTE
         await this.cargarFirmaAdmin(firmaId);
         
+        // FORZAR ACTUALIZACIÓN EN TODOS LOS COMPONENTES
+        this.$emit('firma-actualizada', firmaId);
+        
         // CERRAR MODAL Y MOSTRAR MENSAJE
         this.mostrarModalFirma = false;
-        this.setMensaje('✅ Firma guardada correctamente. Recargando página para aplicar cambios...', 'exito');
+        this.setMensaje('✅ Firma guardada correctamente. Haz clic en "Actualizar Firma" para aplicar cambios.', 'exito');
         
-        // FORZAR RELOAD INMEDIATO PARA APLICAR CAMBIOS
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
+        // MOSTRAR BOTÓN DE ACTUALIZAR FIRMA
+        this.mostrarBotonActualizarFirma = true;
         
       } catch (error) {
         this.setMensaje('❌ Error al guardar la firma', 'error');
@@ -1493,33 +1494,22 @@ export default {
           console.log('📦 Imagen recibida, length:', imagen ? imagen.length : 0);
           this.firmaGuardada = imagen;
           console.log('✅ firmaGuardada establecida');
-        } else {
-          // Si no encuentra la firma, intentar con un ID válido de MongoDB
-          console.log('🔄 Intentando con ID válido de MongoDB...');
-          const firmaIdValido = '6877e7f603a2321e185f62cc'; // ID de la última firma en MongoDB
-          const timestamp2 = Date.now();
-          const url2 = `${API_FIRMAS}/${firmaIdValido}?t=${timestamp2}`;
-          const res2 = await fetch(url2, {
-            cache: 'no-cache', // Forzar no usar caché
-            headers: {
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache',
-              'Expires': '0'
-            }
-          });
-          if (res2.ok) {
-            const { imagen: imagenValida } = await res2.json();
-            console.log('📦 Imagen válida recibida, length:', imagenValida ? imagenValida.length : 0);
-            this.firmaGuardada = imagenValida;
-            // Actualizar el firmaId en Firebase
-            if (this.admin && this.admin.id) {
-              await updateDoc(doc(db, "admins", this.admin.id), { firmaId: firmaIdValido });
-              console.log('✅ firmaId actualizado en Firebase:', firmaIdValido);
-            }
-          } else {
-            console.log('❌ No se pudo cargar firma válida');
-            this.firmaGuardada = null;
+        } else if (res.status === 404) {
+          // Si el firmaId no existe en MongoDB, limpiarlo de Firestore
+          console.log('❌ firmaId no existe en MongoDB, limpiando de Firestore...');
+          if (this.admin && this.admin.id) {
+            await updateDoc(doc(db, "admins", this.admin.id), { firmaId: null });
+            console.log('✅ firmaId limpiado de Firestore');
+            // Limpiar localStorage también
+            const usuarioActual = JSON.parse(localStorage.getItem('usuario'));
+            usuarioActual.firmaId = null;
+            localStorage.setItem('usuario', JSON.stringify(usuarioActual));
           }
+          this.firmaGuardada = null;
+        } else {
+          // Si no encuentra la firma, limpiar la vista
+          console.log('❌ No se pudo cargar la firma desde la API');
+          this.firmaGuardada = null;
         }
       } catch (error) {
         console.error('❌ Error al cargar firma:', error);
@@ -1547,10 +1537,8 @@ export default {
           this.firmaGuardada = null;
           this.setMensaje('✅ Firma eliminada correctamente. Recargando página para aplicar cambios...', 'info');
           
-          // FORZAR RELOAD INMEDIATO PARA APLICAR CAMBIOS
-          setTimeout(() => {
-            window.location.reload();
-          }, 1500);
+                  // MOSTRAR BOTÓN DE ACTUALIZAR FIRMA
+        this.mostrarBotonActualizarFirma = true;
         } catch (error) {
           console.error('Error al eliminar firma:', error);
           this.setMensaje('❌ Error al eliminar la firma', 'error');
@@ -1566,9 +1554,18 @@ export default {
       // Ocultar el botón después de usarlo
       this.mostrarBotonActualizarFirma = false;
       
-      // Recargar la página después de 1 segundo
+      // LIMPIAR TODO EL CACHÉ ANTES DE RECARGAR
+      if ('caches' in window) {
+        caches.keys().then(names => {
+          names.forEach(name => {
+            caches.delete(name);
+          });
+        });
+      }
+      
+      // FORZAR RELOAD CON PARÁMETRO ÚNICO
       setTimeout(() => {
-        window.location.reload();
+        window.location.href = window.location.href + '?t=' + Date.now();
       }, 1000);
     },
 

@@ -51,6 +51,12 @@
 
       <!-- Receta Médica -->
       <section class="receta-medica-section">
+        <div class="receta-header">
+          <h2>💊 Receta Médica</h2>
+          <button @click="forzarActualizacionFirma" class="btn-actualizar-firma-paciente">
+            🔄 Actualizar Firma
+          </button>
+        </div>
         <PacienteRecetaMedica 
           :medicamentosIndicados="paciente.medicamentosIndicados" 
           @descargar-receta="descargarRecetaIndividualPDF"
@@ -349,15 +355,44 @@ export default {
     },
     
     verificarActualizacionFirma() {
-      // Verificar cada 2 segundos si se actualizó la firma
+      // Verificar cada 1 segundo si se actualizó la firma
       setInterval(() => {
         const firmaActualizada = localStorage.getItem('firmaActualizada');
         if (firmaActualizada) {
           console.log('🔄 Firma actualizada detectada, refrescando página...');
           localStorage.removeItem('firmaActualizada');
-          window.location.reload();
+          // LIMPIAR TODO EL CACHÉ ANTES DE RECARGAR
+          if ('caches' in window) {
+            caches.keys().then(names => {
+              names.forEach(name => {
+                caches.delete(name);
+              });
+            });
+          }
+          // FORZAR RELOAD CON PARÁMETRO ÚNICO
+          window.location.href = window.location.href + '?t=' + Date.now();
         }
-      }, 2000);
+      }, 1000);
+    },
+    
+    forzarActualizacionFirma() {
+      // Forzar actualización de firma manual
+      localStorage.setItem('firmaActualizada', Date.now().toString());
+      alert('🔄 Actualizando firma...');
+      
+      // LIMPIAR TODO EL CACHÉ ANTES DE RECARGAR
+      if ('caches' in window) {
+        caches.keys().then(names => {
+          names.forEach(name => {
+            caches.delete(name);
+          });
+        });
+      }
+      
+      // FORZAR RELOAD CON PARÁMETRO ÚNICO
+      setTimeout(() => {
+        window.location.href = window.location.href + '?t=' + Date.now();
+      }, 500);
     },
     mesANumero(mes) {
       const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -512,10 +547,11 @@ export default {
         console.log('✅ Usando firmaId de Firestore:', firmaId);
       }
       
-      // 3. Si aún no hay firmaId, usar el ID válido conocido
+      // 3. Si no hay firmaId, no podemos generar PDF con firma
       if (!firmaId) {
-        console.log('🔄 No se encontró firmaId, usando ID válido conocido...');
-        firmaId = '6877e7f603a2321e185f62cc';
+        console.log('❌ No se encontró firmaId, generando PDF sin firma');
+        this.generarPDFConFirma(medicamento, null);
+        return;
       }
       
       // 4. LIMPIAR CACHÉ DEL NAVEGADOR PARA LA FIRMA
@@ -530,16 +566,34 @@ export default {
         }
       }
       
+      // 5. FORZAR ACTUALIZACIÓN INMEDIATA SI SE DETECTA CAMBIO
+      const firmaActualizada = localStorage.getItem('firmaActualizada');
+      if (firmaActualizada) {
+        console.log('🔄 Firma actualizada detectada, forzando recarga...');
+        localStorage.removeItem('firmaActualizada');
+        // LIMPIAR TODO EL CACHÉ
+        if ('caches' in window) {
+          caches.keys().then(names => {
+            names.forEach(name => {
+              caches.delete(name);
+            });
+          });
+        }
+        // FORZAR RELOAD
+        window.location.href = window.location.href + '?t=' + Date.now();
+        return;
+      }
+      
       // Buscar la firma del admin usando firmaId
       if (firmaId) {
         console.log('✅ Admin tiene firmaId:', firmaId);
         try {
           const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || '/api/firmas';
           
-          // Intentar primero con el firmaId actual
+          // Verificar si el firmaId existe en MongoDB
           const timestamp = Date.now();
           const url = `${API_FIRMAS}/${firmaId}?t=${timestamp}`;
-          console.log('🌐 Haciendo petición a:', url);
+          console.log('🌐 Verificando firma en MongoDB:', url);
           const res = await fetch(url, {
             cache: 'no-cache', // Forzar no usar caché
             headers: {
@@ -580,50 +634,29 @@ export default {
               console.log('🎯 Imagen lista para PDF:', loadedImg);
               this.generarPDFConFirma(medicamento, loadedImg);
             } else {
-              // Si los datos no son válidos, intentar con un ID válido de MongoDB
-              console.log('🔄 Datos de firma inválidos, intentando con ID válido...');
-              const firmaIdValido = '6877e7f603a2321e185f62cc';
-              const timestamp2 = Date.now();
-              const url2 = `${API_FIRMAS}/${firmaIdValido}?t=${timestamp2}`;
-              const res2 = await fetch(url2, {
-                cache: 'no-cache', // Forzar no usar caché
-                headers: {
-                  'Cache-Control': 'no-cache, no-store, must-revalidate',
-                  'Pragma': 'no-cache',
-                  'Expires': '0'
-                }
-              });
-              if (res2.ok) {
-                const data2 = await res2.json();
-                console.log('📦 Datos de firma válidos recibidos:', data2);
-                
-                if (data2.imagen && data2.imagen.startsWith('data:image')) {
-                  const img = new window.Image();
-                  img.crossOrigin = "Anonymous";
-                  
-                  const loadImage = new Promise((resolve, reject) => {
-                    img.onload = () => {
-                      console.log('✅ Imagen válida cargada exitosamente');
-                      resolve(img);
-                    };
-                    img.onerror = () => {
-                      console.error('❌ Error al cargar imagen válida');
-                      reject(new Error('Error al cargar imagen válida'));
-                    };
-                  });
-                  
-                  img.src = data2.imagen;
-                  const loadedImg = await loadImage;
-                  this.generarPDFConFirma(medicamento, loadedImg);
-                } else {
-                  console.log('❌ Datos de firma válida también inválidos');
-                  this.generarPDFConFirma(medicamento, null);
-                }
-              } else {
-                console.log('❌ No se pudo cargar la firma válida');
-                this.generarPDFConFirma(medicamento, null);
-              }
+              // Si los datos no son válidos, generar PDF sin firma
+              console.log('❌ Datos de firma inválidos, generando PDF sin firma');
+              this.generarPDFConFirma(medicamento, null);
             }
+          } else if (res.status === 404) {
+            // Si el firmaId no existe en MongoDB, limpiarlo de Firestore
+            console.log('❌ firmaId no existe en MongoDB, limpiando de Firestore...');
+            try {
+              const usuarioData = localStorage.getItem('usuario');
+              if (usuarioData) {
+                const usuario = JSON.parse(usuarioData);
+                if (usuario.rol === 'admin' && usuario.id) {
+                  await updateDoc(doc(db, "admins", usuario.id), { firmaId: null });
+                  console.log('✅ firmaId limpiado de Firestore');
+                  // Limpiar localStorage también
+                  usuario.firmaId = null;
+                  localStorage.setItem('usuario', JSON.stringify(usuario));
+                }
+              }
+            } catch (e) {
+              console.error('❌ Error al limpiar firmaId:', e);
+            }
+            this.generarPDFConFirma(medicamento, null);
           } else {
             console.log('❌ No se pudo cargar la firma desde la API');
             this.generarPDFConFirma(medicamento, null);
@@ -1167,6 +1200,35 @@ h2 {
 .receta-medica-section {
   margin-top: 32px;
   margin-bottom: 32px;
+}
+
+.receta-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.receta-header h2 {
+  margin: 0;
+  color: #333;
+  font-size: 18px;
+}
+
+.btn-actualizar-firma-paciente {
+  background: #17a2b8;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+
+.btn-actualizar-firma-paciente:hover {
+  background: #138496;
 }
 
 /* Estilos para la cabecera de signos vitales y los botones a la derecha */
