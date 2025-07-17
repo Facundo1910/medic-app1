@@ -88,7 +88,7 @@
   
 <script>
 import { db } from "@/firebase";
-import { collection, getDocs, query, where, onSnapshot, updateDoc, addDoc, query as firestoreQuery, collection as firestoreCollection, where as firestoreWhere } from "firebase/firestore";
+import { collection, getDocs, query, where, onSnapshot, updateDoc, addDoc, doc, query as firestoreQuery, collection as firestoreCollection, where as firestoreWhere } from "firebase/firestore";
 import SignosVitalesCharts from './commons/SignosVitalesCharts.vue';
 import PacienteInfo from './commons/PacienteInfo.vue';
 import PacienteDiagnosticos from './commons/PacienteDiagnosticos.vue';
