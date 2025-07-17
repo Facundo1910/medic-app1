@@ -194,6 +194,12 @@ body {
   padding: 10px;
 }
 
+@media (max-width: 600px) {
+  .logo-brionia {
+    display: none;
+  }
+}
+
 :root {
   --color-principal: #17989c;
   --color-principal-hover: #1fcfcf;
