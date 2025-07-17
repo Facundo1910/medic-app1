@@ -53,8 +53,25 @@ export default async function handler(req, res) {
     console.log('🖼️ Tipo de imagen:', typeof firma.imagen);
     console.log('📄 Primeros 50 caracteres de imagen:', firma.imagen ? firma.imagen.substring(0, 50) : 'null');
     return res.json({ imagen: firma.imagen });
+  } else if (req.method === 'PUT') {
+    const { id } = req.query;
+    const { imagen } = req.body;
+    if (!id || id.length !== 24) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+    if (!imagen || typeof imagen !== 'string') {
+      return res.status(400).json({ error: 'Imagen base64 requerida' });
+    }
+    const firma = await Firma.findById(id);
+    if (!firma) {
+      return res.status(404).json({ error: 'Firma no encontrada para actualizar' });
+    }
+    firma.imagen = imagen;
+    firma.fecha = new Date();
+    await firma.save();
+    return res.json({ ok: true, id: firma._id });
   } else {
-    res.setHeader('Allow', ['GET']);
+    res.setHeader('Allow', ['GET', 'PUT']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 } 

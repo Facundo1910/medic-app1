@@ -182,29 +182,51 @@ export default {
         }
         // En producción, guardar en el backend
         const API_FIRMAS = process.env.VUE_APP_API_FIRMAS || 'https://medic-app1.vercel.app/api/firmas';
-        const response = await fetch(API_FIRMAS, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imagen: firmaDataURL })
-        });
-        if (!response.ok) throw new Error('Error al guardar en MongoDB');
-        const data = await response.json();
+        // Obtener usuario y firmaId
+        const usuarioData = localStorage.getItem('usuario');
+        let firmaId = null;
+        let usuario = null;
+        if (usuarioData) {
+          usuario = JSON.parse(usuarioData);
+          firmaId = usuario.firmaId || null;
+        }
+        let response, data;
+        if (firmaId) {
+          // Hacer PUT para sobrescribir la firma existente
+          response = await fetch(`${API_FIRMAS}/${firmaId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imagen: firmaDataURL })
+          });
+          if (!response.ok) throw new Error('Error al actualizar firma en MongoDB');
+          data = await response.json();
+        } else {
+          // Hacer POST para crear una nueva firma
+          response = await fetch(API_FIRMAS, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imagen: firmaDataURL })
+          });
+          if (!response.ok) throw new Error('Error al guardar en MongoDB');
+          data = await response.json();
+        }
         this.mensaje = '✅ Firma guardada en MongoDB (ID: ' + data.id + ')';
         this.mensajeTipo = 'exito';
         // Guardar el ID en Firebase (paciente actual)
-        const usuarioData = localStorage.getItem('usuario');
-        if (usuarioData) {
-          const usuario = JSON.parse(usuarioData);
-          if (usuario.rol === 'paciente' && usuario.id) {
+        if (usuario && usuario.id) {
+          if (usuario.rol === 'paciente') {
             const docRef = doc(db, 'pacientes', usuario.id);
             await updateDoc(docRef, { firmaId: data.id });
-          } else if (usuario.rol === 'admin' && usuario.id) {
+          } else if (usuario.rol === 'admin') {
             const docRef = doc(db, 'admins', usuario.id);
             await updateDoc(docRef, { firmaId: data.id });
-          } else if (usuario.rol === 'medico' && usuario.id) {
+          } else if (usuario.rol === 'medico') {
             const docRef = doc(db, 'medicos', usuario.id);
             await updateDoc(docRef, { firmaId: data.id });
           }
+          // Actualizar localStorage
+          usuario.firmaId = data.id;
+          localStorage.setItem('usuario', JSON.stringify(usuario));
         }
         // Emitir evento de firma guardada con el ID de Mongo
         this.$emit('firma-guardada', data.id);

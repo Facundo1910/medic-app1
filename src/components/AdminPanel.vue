@@ -637,6 +637,9 @@
             <div class="firma-preview-container">
               <img :src="firmaGuardada || firmaLocalStorage" alt="Firma del médico" class="firma-preview-img" />
             </div>
+            <button @click="corregirFirmaId" class="btn-corregir-firma" style="margin-top: 10px; padding: 8px 16px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer;">
+              🔧 Corregir ID de Firma
+            </button>
           </div>
         </div>
       </div>
@@ -1756,6 +1759,23 @@ export default {
       this.mensajeTipo = tipo;
       if (duracion > 0) {
         setTimeout(() => { this.mensajeBanner = ''; }, duracion);
+      }
+    },
+    async corregirFirmaId() {
+      // Pide el ID correcto al usuario
+      const nuevoId = prompt('Introduce el ID correcto de la firma (debe coincidir con el campo imagen en MongoDB):');
+      if (!nuevoId) return;
+      try {
+        // Actualiza en Firestore
+        await updateDoc(doc(db, "admins", this.admin.id), { firmaId: nuevoId });
+        // Actualiza en localStorage
+        const usuarioActual = JSON.parse(localStorage.getItem('usuario'));
+        usuarioActual.firmaId = nuevoId;
+        localStorage.setItem('usuario', JSON.stringify(usuarioActual));
+        this.admin.firmaId = nuevoId;
+        this.setMensaje('✅ firmaId actualizado. Recarga la página para ver los cambios.', 'info');
+      } catch (e) {
+        this.setMensaje('❌ Error al actualizar el firmaId', 'error');
       }
     }
   }
