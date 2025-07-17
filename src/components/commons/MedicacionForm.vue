@@ -54,9 +54,16 @@ export default {
     return {
       medicamentoLocal: this.medicamento,
       dosisLocal: this.dosis,
-      fechaHoraLocal: this.fechaHora,
+      fechaHoraLocal: this.fechaHora || this.getFechaHoraActual(),
       sugerencias: []
     };
+  },
+  mounted() {
+    // Si no hay fecha establecida, usar la fecha y hora actual
+    if (!this.fechaHoraLocal) {
+      this.fechaHoraLocal = this.getFechaHoraActual();
+      this.$emit('update:fechaHora', this.fechaHoraLocal);
+    }
   },
   watch: {
     medicamento(val) { this.medicamentoLocal = val; },
@@ -64,6 +71,16 @@ export default {
     fechaHora(val) { this.fechaHoraLocal = val; }
   },
   methods: {
+    getFechaHoraActual() {
+      // Devuelve la fecha y hora actual en formato yyyy-MM-ddTHH:mm (para input type datetime-local)
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    },
     async buscarMedicamentos() {
       if (this.medicamentoLocal.length < 3) {
         this.sugerencias = [];

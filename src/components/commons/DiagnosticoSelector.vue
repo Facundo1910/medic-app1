@@ -48,7 +48,22 @@ export default {
       try {
         const res = await fetch(url);
         const data = await res.json();
-        this.sugerenciasDiagnostico = (data[3] || []).map(arr => arr[0]);
+        const sugerenciasIngles = (data[3] || []).map(arr => arr[0]);
+        // Traducir cada sugerencia al español usando LibreTranslate
+        const traducciones = await Promise.all(sugerenciasIngles.map(async (texto) => {
+          try {
+            const resp = await fetch('https://libretranslate.de/translate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ q: texto, source: 'en', target: 'es', format: 'text' })
+            });
+            const data = await resp.json();
+            return data.translatedText || texto;
+          } catch (e) {
+            return texto; // Si falla la traducción, mostrar el texto original
+          }
+        }));
+        this.sugerenciasDiagnostico = traducciones;
       } catch (e) {
         this.sugerenciasDiagnostico = [];
       }
