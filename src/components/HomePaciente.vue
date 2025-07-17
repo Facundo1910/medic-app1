@@ -283,10 +283,18 @@ export default {
           if (doc.exists()) {
             const data = doc.data();
             
-            // Actualizar diagnósticos
-            if (data.diagnosticos && Array.isArray(data.diagnosticos)) {
+            // --- DIAGNÓSTICOS ---
+            if (data.diagnosticos && Array.isArray(data.diagnosticos) && data.diagnosticos.length > 0) {
               this.diagnosticos = data.diagnosticos;
+            } else if (data.medicamentosIndicados && Array.isArray(data.medicamentosIndicados)) {
+              // Juntar todos los diagnósticos de los medicamentosIndicados
+              const diags = data.medicamentosIndicados.flatMap(med => Array.isArray(med.diagnostico) ? med.diagnostico : (med.diagnostico ? [med.diagnostico] : []));
+              // Eliminar duplicados y vacíos
+              this.diagnosticos = [...new Set(diags.filter(Boolean))];
+            } else {
+              this.diagnosticos = [];
             }
+            // --- FIN DIAGNÓSTICOS ---
             
             // Actualizar historial de medicaciones
             if (data.medicaciones && Array.isArray(data.medicaciones)) {
