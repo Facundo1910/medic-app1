@@ -44,7 +44,7 @@
       <!-- Información del paciente seleccionado y módulos reutilizables -->
       <div v-if="pacienteActual">
         <PacienteInfo :paciente="pacienteActual" />
-        <PacienteDiagnosticos :diagnosticos="pacienteActual.diagnosticos || []" />
+        <PacienteDiagnosticos :diagnosticos="diagnosticosVisibles" />
         <PacienteHistorialMedicacion :historial="pacienteActual.medicaciones || []" />
         <PacienteResumen :diagnosticos="pacienteActual.diagnosticos || []" :historial="pacienteActual.medicaciones || []" />
         
@@ -320,6 +320,7 @@ export default {
       signosError: false,
       medicamentosDisponibles: [],
       medicamentosIndicadosVisibles: [],
+      diagnosticosVisibles: [],
       // Variables para configuración
       seccionActiva: 'pacientes',
       tabs: [
@@ -346,6 +347,15 @@ export default {
           this.filtrarYLimpiarMedicamentosIndicados(nuevo);
         } else {
           this.medicamentosIndicadosVisibles = [];
+        }
+        // Diagnósticos visibles (igual que HomePaciente)
+        if (nuevo && Array.isArray(nuevo.diagnosticos) && nuevo.diagnosticos.length > 0) {
+          this.diagnosticosVisibles = nuevo.diagnosticos;
+        } else if (nuevo && Array.isArray(nuevo.medicamentosIndicados)) {
+          const diags = nuevo.medicamentosIndicados.flatMap(med => Array.isArray(med.diagnostico) ? med.diagnostico : (med.diagnostico ? [med.diagnostico] : []));
+          this.diagnosticosVisibles = [...new Set(diags.filter(Boolean))];
+        } else {
+          this.diagnosticosVisibles = [];
         }
       }
     },
