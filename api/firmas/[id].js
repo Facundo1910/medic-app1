@@ -56,6 +56,9 @@ export default async function handler(req, res) {
   } else if (req.method === 'PUT') {
     const { id } = req.query;
     const { imagen } = req.body;
+    console.log('🔄 PUT - Actualizando firma con ID:', id);
+    console.log('🔍 PUT - Tipo de imagen recibida:', typeof imagen);
+    console.log('📄 PUT - Primeros 100 caracteres:', imagen ? imagen.substring(0, 100) : 'null');
     if (!id || id.length !== 24) {
       return res.status(400).json({ error: 'ID inválido' });
     }
@@ -69,6 +72,7 @@ export default async function handler(req, res) {
     firma.imagen = imagen;
     firma.fecha = new Date();
     await firma.save();
+    console.log('✅ PUT - Firma actualizada correctamente');
     return res.json({ ok: true, id: firma._id });
   } else {
     res.setHeader('Allow', ['GET', 'PUT']);

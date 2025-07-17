@@ -30,6 +30,8 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     const { imagen } = req.body;
     console.log('💾 Guardando nueva firma, imagen length:', imagen ? imagen.length : 0);
+    console.log('🔍 POST - Tipo de imagen recibida:', typeof imagen);
+    console.log('📄 POST - Primeros 100 caracteres:', imagen ? imagen.substring(0, 100) : null);
     if (!imagen) return res.status(400).json({ error: 'Falta la imagen' });
     const nuevaFirma = new Firma({ imagen });
     await nuevaFirma.save();

@@ -193,6 +193,9 @@ export default {
         let response, data;
         if (firmaId) {
           // Hacer PUT para sobrescribir la firma existente
+          console.log(🔄PUT - Enviando firma existente, firmaId:', firmaId);
+          console.log('📦 PUT - Tipo de imagen a enviar:', typeof firmaDataURL);
+          console.log(📄 PUT - Primeros100 caracteres:', firmaDataURL.substring(0, 100));
           response = await fetch(`${API_FIRMAS}/${firmaId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -202,6 +205,9 @@ export default {
           data = await response.json();
         } else {
           // Hacer POST para crear una nueva firma
+          console.log(🆕 POST - Creando nueva firma');
+          console.log(📦 POST - Tipo de imagen a enviar:', typeof firmaDataURL);
+          console.log('📄 POST - Primeros100 caracteres:', firmaDataURL.substring(0, 100));
           response = await fetch(API_FIRMAS, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
